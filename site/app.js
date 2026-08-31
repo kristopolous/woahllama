@@ -345,7 +345,7 @@ function bubbles(oct) {
       const n = +slider.value + 1;
       if (n >= oct.nweeks) return stop();
       slider.value = n; drawFrame(oct, n);
-    }, 130);
+    }, 260);
   };
   drawFrame(oct, oct.nweeks - 1);
 }
@@ -624,20 +624,20 @@ function worldMap(world, M) {
   // mode toggle
   const modeHost = $('map-mode');
   if (!modeHost.dataset.built) {
-    modeHost.className = 'pills';
-    modeHost.innerHTML = '<button class="pill" data-mode="country" aria-pressed="true">By country</button>'
-      + '<button class="pill" data-mode="city">By city</button>';
+    modeHost.className = 'seg';
+    modeHost.innerHTML = '<button data-mode="country" aria-pressed="true">By country</button>'
+      + '<button data-mode="city">By city</button>';
     modeHost.dataset.built = '1';
   }
   const applyMode = () => {
     gCountries.setAttribute('display', mode === 'country' ? 'block' : 'none');
     gLand.setAttribute('display', mode === 'city' ? 'block' : 'none');
     gCities.setAttribute('display', mode === 'city' ? 'block' : 'none');
-    modeHost.querySelectorAll('.pill').forEach(b =>
+    modeHost.querySelectorAll('button').forEach(b =>
       b.setAttribute('aria-pressed', b.dataset.mode === mode));
   };
   modeHost.onclick = e => {
-    const b = e.target.closest('.pill');
+    const b = e.target.closest('button');
     if (!b) return;
     mode = host.dataset.mode = b.dataset.mode;
     applyMode(); paint(+$('map-frame').value);

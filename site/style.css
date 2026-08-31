@@ -211,3 +211,12 @@ table.data td code, .tip code { overflow-wrap: anywhere; word-break: break-word;
   border-radius: 6px; color: var(--text-primary); cursor: pointer;
   -webkit-user-select: none; user-select: none; }
 .zoombtns button:hover { border-color: var(--text-muted); }
+
+.rampline { display: flex; align-items: center; gap: 12px 16px; margin-top: 10px; flex-wrap: wrap; }
+.rampline .ramp { margin-top: 0; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12.5px; padding: 5px 13px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary); border: none;
+  border-right: 1px solid var(--border); -webkit-user-select: none; user-select: none; }
+.seg button:last-child { border-right: none; }
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }

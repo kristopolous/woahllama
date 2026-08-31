@@ -41,13 +41,16 @@
   few servers to rate are hatched.</p>
   <div class="card">
     <div class="controls">
-      <div id="map-mode"></div>
       <div id="map-metric"></div>
       <span class="spacer"></span>
       <span class="note" id="map-lead" style="margin:0"></span>
     </div>
     <div class="map-wrap" id="map"></div>
-    <div class="ramp" id="map-ramp"></div>
+    <div class="rampline">
+      <span class="ramp" id="map-ramp"></span>
+      <span class="spacer"></span>
+      <div id="map-mode" class="seg"></div>
+    </div>
     <div class="player">
       <button id="map-play">▶ Play</button>
       <input type="range" id="map-frame" min="0" value="0">
