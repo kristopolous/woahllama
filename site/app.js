@@ -32,8 +32,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding]) => {
     window.__models = models; window.__geo = geo;
     stats(counts, life, pools, mapd);
     population(counts);
@@ -52,6 +52,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     poolScatter(pools);
     blocksChart(models, vendors);
     lifespanHist(life);
+    hoardingChart(hoarding, vendors);
     addEventListener('resize', debounce(() => {
       population(counts); vendorChart(vendors, counts);
       modelChart(models, true); geoChart(geo, true);
@@ -62,7 +63,8 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     templateDecoder(template);
     sizeChart(sizes);
     quantChart(sizes);
-    poolScatter(pools); composition(pools);
+    poolScatter(pools); blocksChart(models, vendors); lifespanHist(life);
+      hoardingChart(hoarding, vendors);
       drawFrame(octets, +$('frame').value);
       worldMap(world, mapd);
     }, 180));
@@ -659,7 +661,7 @@ function worldMap(world, M) {
   syncPills();
   $('map-play').onclick = () => {
     if (timer) return stop();
-    if (+slider.value >= M.months.length - 1) slider.value = 0;
+    if (+slider.value >= M.months.length - 2) slider.value = 0;
     $('map-play').textContent = '❚❚ Pause';
     timer = setInterval(() => {
       const n = +slider.value + 1;
@@ -922,13 +924,6 @@ function strangeSection(S) {
     ]);
   })();
 
-  $('hoarders').innerHTML = '<thead><tr><th>server</th><th>where</th>'
-    + '<th style="text-align:right">models</th>'
-    + '<th style="text-align:right">weights on disk</th></tr></thead><tbody>'
-    + S.hoarders.map(([url, n, bytes, cc]) =>
-        `<tr><td><code>${url}</code></td><td>${cc || '-'}</td>
-         <td class="n">${n}</td>
-         <td class="n">${(bytes / 1e12).toFixed(2)} TB</td></tr>`).join('') + '</tbody>';
 }
 
 
@@ -1249,4 +1244,68 @@ function addZoom(host, svg, W, H) {
   const end = () => { drag = null; svg.style.cursor = 'grab'; };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
+}
+
+
+/* ------------------------------------------------ per-model library size */
+/* Each dot is a model: x = how many hosts run it (log), y = the average library
+   size of those hosts. Popular defaults sit low (minimal boxes); specialised and
+   cloud-proxied models sit high (big multi-model rigs). Colour by lab. */
+function hoardingChart(H, vendors) {
+  const host = $('hoarding');
+  const W = host.clientWidth || 1100, ht = 440;
+  const M = { t: 26, r: 16, b: 40, l: 46 };
+  const iw = W - M.l - M.r, ih = ht - M.t - M.b;
+  const vc = vendorColors(vendors);
+  const hostsMax = Math.max(...H.models.map(m => m[1]));
+  const avgMax = Math.max(...H.models.map(m => m[2])) * 1.08;
+  const X = n => M.l + Math.log10(n / 10) / Math.log10(hostsMax * 1.3 / 10) * iw;
+  const Y = a => M.t + ih - a / avgMax * ih;
+
+  const svg = el('svg', { viewBox: `0 0 ${W} ${ht}`, height: ht });
+  const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+  for (const a of [0, 10, 20, 30, 40]) {
+    if (a > avgMax) continue;
+    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(a), y2: Y(a) }));
+    axis.append(el('text', { x: M.l - 8, y: Y(a) + 4, 'text-anchor': 'end' }, a));
+  }
+  for (const n of [12, 20, 50, 100, 200, 500, 1000]) {
+    if (n > hostsMax * 1.3) continue;
+    grid.append(el('line', { x1: X(n), x2: X(n), y1: M.t, y2: M.t + ih }));
+    axis.append(el('text', { x: X(n), y: ht - 6, 'text-anchor': 'middle' }, n));
+  }
+  // typical-library reference line
+  grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(H.overall_mean), y2: Y(H.overall_mean),
+    stroke: 'var(--text-muted)', 'stroke-dasharray': '3 3' }));
+  axis.append(el('text', { x: W - M.r, y: Y(H.overall_mean) - 5, 'text-anchor': 'end',
+    style: 'fill:var(--text-muted)' }, `typical (${H.overall_mean})`));
+  axis.append(el('text', { x: M.l, y: 13, 'text-anchor': 'start',
+    style: 'fill:var(--text-muted)' }, 'avg library size'));
+  axis.append(el('text', { x: M.l + iw / 2, y: ht - 4, 'text-anchor': 'middle',
+    style: 'fill:var(--text-muted)' }, 'hosts running the model  \u2192'));
+  svg.append(grid, axis);
+
+  [...H.models].sort((a, b) => b[1] - a[1]).forEach(([name, hosts, avg, vend]) => {
+    const c = el('circle', { cx: X(hosts), cy: Y(avg), r: 2.5 + Math.sqrt(hosts) * 0.5,
+      fill: vc.colorFor(vend), 'fill-opacity': 0.55, stroke: 'var(--surface-1)', 'stroke-width': 1,
+      'data-vendor': vend });
+    c.addEventListener('mousemove', ev => showTip(
+      `<b>${name}</b><br>${hosts.toLocaleString()} hosts<br>` +
+      `their libraries average <b>${avg}</b> models<br>` +
+      `<span style="color:var(--text-muted)">${vend}</span>`, ev));
+    c.addEventListener('mouseleave', hideTip);
+    svg.append(c);
+  });
+  host.replaceChildren(svg);
+  const lg = $('hoarding-legend');
+  const dim = v => svg.querySelectorAll('circle').forEach(c =>
+    c.setAttribute('fill-opacity',
+      v === null || c.getAttribute('data-vendor') === v ? 0.55 : 0.05));
+  lg.replaceChildren(...vc.top.map(v => {
+    const sp = document.createElement('span');
+    sp.innerHTML = `<i style="background:${vc.map[v]}"></i>${v}`;
+    sp.addEventListener('mouseenter', () => dim(v));
+    sp.addEventListener('mouseleave', () => dim(null));
+    return sp;
+  }));
 }

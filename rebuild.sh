@@ -12,3 +12,4 @@ python3 strange.py
 python3 build.py
 python3 build_probe.py
 python3 survey_versions.py
+python3 build_hoarding.py

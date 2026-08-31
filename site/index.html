@@ -153,6 +153,18 @@
   </div>
 </section>
 <section>
+  <h2>The company a model keeps</h2>
+  <p class="note">Each dot is a model. Across is how many hosts run it; up is the average
+  library size of those hosts, meaning how many models they run in total. The popular
+  defaults sit on minimal single-purpose boxes, while cloud-proxied and specialised models
+  ride on big multi-model rigs. Popularity anti-correlates with library size. Coloured by
+  lab; the dashed line is the typical library.</p>
+  <div class="card">
+    <div id="hoarding"></div>
+    <div class="legend" id="hoarding-legend"></div>
+  </div>
+</section>
+<section>
   <h2>Address space</h2>
   <p class="note">Every server placed by the first two octets of its IPv4 address. The X-Axis is the first octet, the Y-Axis the second, circle area the number of servers in that /16 that week.
   Pick a lab and the fill shows each neighbourhood's share running its models. Whole
@@ -286,7 +298,8 @@
     <p class="note">Unknown, and the data does not let us pretend otherwise. What is
     established is narrow. Within OllamaSpider's feed, hundreds of live hosts answer the
     Ollama API with a frozen set of old models, sizes that do not match the published blobs,
-    rotating version strings, and phrase-bank replies. The behaviour matches no published
+    rotating version strings, and phrase-bank replies.</p>
+    <p class="note">The behaviour matches no published
     honeypot, tarpit or mock-server project, checked against GitHub, the web, and the
     honeypot literature. The closest, <code>funnypot</code>, echoes the model name rather
     than the prompt and runs on a single host. The causes are all guesses and range widely.
@@ -297,14 +310,6 @@
     and subnet clustering, and whether one operator's fingerprints recur.</p>
   </div>
 
-  <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">And the real ones, which are the actual story</h2>
-    <p class="note">Set the responders aside and there are thousands of real open servers,
-    with consistent per-model sizes, coherent catalogues, and terabytes of real weights on
-    an open port. These are the ones that matter, and Chapter 1 is about them. The
-    responders are mostly a reason to distrust any single scanner's raw count.</p>
-    <div class="scroll"><table class="data" id="hoarders"></table></div>
-  </div>
 </section>
 <section>
   <h2>What the scanners actually saw</h2>

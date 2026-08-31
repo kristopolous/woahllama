@@ -22,3 +22,6 @@ __pycache__/
 
 # Scratch
 /scratchpad/
+
+# private wider survey (host-level; never publish)
+/full-survey-private.json
