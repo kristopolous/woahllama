@@ -423,7 +423,7 @@ function lifespanHist(life) {
   host.replaceChildren(svg);
   const yr = data[data.length - 1][1];
   $('lifespan-note').innerHTML =
-    `Median lifespan is <b>${life.clean.median.toFixed(1)} days</b>, but
+    `Median lifespan is <b>${life.clean.median.toFixed(1)} day</b>, but
      <b>${yr.toLocaleString()}</b> servers stayed reachable for over a year.`;
 }
 
