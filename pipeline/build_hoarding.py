@@ -17,6 +17,17 @@ MIN_HOSTS = 12
 sys.path.insert(0, str(ROOT / "pipeline"))
 from vendors import vendor as vendor_of
 
+# parameter count from a model name: 135m -> 0.135, 7b -> 7, 480b, 1t -> 1000
+_SZ = re.compile(r'(?<![a-z0-9.])(\d+(?:\.\d+)?)\s*([bmt])(?![a-z])', re.I)
+def params_b(name):
+    best = None
+    for m in _SZ.finditer(name):
+        v = float(m.group(1)); u = m.group(2).lower()
+        v = v / 1000 if u == 'm' else v * 1000 if u == 't' else v
+        if v <= 2000:
+            best = v if best is None else max(best, v)
+    return best
+
 
 def main():
     if not SRC.exists():
@@ -39,7 +50,7 @@ def main():
         base = name.split("/")[-1].split(":")[0]
         safe = re.sub(r'(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}', r'\1.\2.x.x', name)
         models.append([safe, len(sizes), round(statistics.mean(sizes), 1),
-                       vendor_of(name)])
+                       vendor_of(name), params_b(name)])
     models.sort(key=lambda r: -r[2])
 
     out = {

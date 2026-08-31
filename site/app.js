@@ -1259,6 +1259,12 @@ function hoardingChart(H, vendors) {
   const vc = vendorColors(vendors);
   const hostsMax = Math.max(...H.models.map(m => m[1]));
   const avgMax = Math.max(...H.models.map(m => m[2])) * 1.08;
+  const sized = H.models.filter(m => m[4]);
+  const lp = Math.log10(Math.min(...sized.map(m => m[4])));
+  const hp = Math.log10(Math.max(...sized.map(m => m[4])));
+  const R = pb => pb == null ? 3 : 3.5 + (Math.log10(pb) - lp) / (hp - lp) * 13;
+  const fmtP = pb => pb == null ? 'size unknown'
+    : '\u2248' + (pb >= 1000 ? (pb / 1000) + 'T' : pb < 1 ? Math.round(pb * 1000) + 'M' : pb + 'B') + ' params';
   const X = n => M.l + Math.log10(n / 10) / Math.log10(hostsMax * 1.3 / 10) * iw;
   const Y = a => M.t + ih - a / avgMax * ih;
 
@@ -1285,12 +1291,12 @@ function hoardingChart(H, vendors) {
     style: 'fill:var(--text-muted)' }, 'hosts running the model  \u2192'));
   svg.append(grid, axis);
 
-  [...H.models].sort((a, b) => b[1] - a[1]).forEach(([name, hosts, avg, vend]) => {
-    const c = el('circle', { cx: X(hosts), cy: Y(avg), r: 2.5 + Math.sqrt(hosts) * 0.5,
+  [...H.models].sort((a, b) => (b[4] || 0) - (a[4] || 0)).forEach(([name, hosts, avg, vend, pb]) => {
+    const c = el('circle', { cx: X(hosts), cy: Y(avg), r: R(pb),
       fill: vc.colorFor(vend), 'fill-opacity': 0.55, stroke: 'var(--surface-1)', 'stroke-width': 1,
       'data-vendor': vend });
     c.addEventListener('mousemove', ev => showTip(
-      `<b>${name}</b><br>${hosts.toLocaleString()} hosts<br>` +
+      `<b>${name}</b><br>${hosts.toLocaleString()} hosts · ${fmtP(pb)}<br>` +
       `their libraries average <b>${avg}</b> models<br>` +
       `<span style="color:var(--text-muted)">${vend}</span>`, ev));
     c.addEventListener('mouseleave', hideTip);
