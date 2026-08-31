@@ -202,3 +202,12 @@ table.data td code, .tip code { overflow-wrap: anywhere; word-break: break-word;
   section { margin-top: 34px; }
   .stat .v { font-size: 22px; }
 }
+
+.zoombtns { position: absolute; top: 10px; right: 10px; display: flex;
+  flex-direction: column; gap: 4px; z-index: 3; }
+.zoombtns button { width: 30px; height: 30px; font-size: 18px; line-height: 1;
+  padding: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); cursor: pointer;
+  -webkit-user-select: none; user-select: none; }
+.zoombtns button:hover { border-color: var(--text-muted); }

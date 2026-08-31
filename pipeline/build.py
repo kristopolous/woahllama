@@ -235,6 +235,41 @@ def main():
     write(OUT/"map.json", {"months": months, "min_n": MIN_N,
                            "vendors": top_vendors, "countries": countries})
 
+    # ---- 4d. city dot map (aggregate, >=5 servers, current-snapshot lean) --
+    MIN_CITY = 5
+    cgeo = {}
+    for sid, city, cc, lat, lon in con.execute(
+            "SELECT server_id,city,country,lat,lon FROM server_geo"
+            " WHERE lat IS NOT NULL AND lat <> 0"):
+        cgeo[sid] = (round(lat, 1), round(lon, 1), city, cc)
+    cserv = collections.defaultdict(set)
+    cname = {}
+    for svid, in con.execute(
+            f"SELECT DISTINCT server_id FROM presence WHERE source_id IN {keep}"):
+        g = cgeo.get(svid)
+        if g:
+            key = (g[0], g[1]); cserv[key].add(svid); cname[key] = (g[2], g[3])
+    cus = collections.Counter(); ccn = collections.Counter()
+    for svid, mid in con.execute(
+            f"SELECT DISTINCT server_id, model_id FROM server_model"
+            f" WHERE source_id IN {keep}"):
+        g = cgeo.get(svid)
+        if not g:
+            continue
+        key = (g[0], g[1]); og = orig_of.get(mid)
+        if og == "US": cus[key] += 1
+        elif og == "CN": ccn[key] += 1
+    cities = []
+    for key, svs in cserv.items():
+        if len(svs) < MIN_CITY:
+            continue
+        us, cn = cus[key], ccn[key]
+        lean = round((cn - us) / (cn + us), 3) if (us + cn) >= 10 else None
+        city, cc = cname[key]
+        cities.append([key[0], key[1], len(svs), cc, city, lean])
+    cities.sort(key=lambda r: -r[2])
+    write(OUT/"cities.json", {"min_city": MIN_CITY, "cities": cities})
+
     # ---- 4c. model size and quantisation over time ------------------------
     # Counted in installs, and only over the models whose size or quantisation
     # is actually known - the unresolved remainder is reported alongside rather

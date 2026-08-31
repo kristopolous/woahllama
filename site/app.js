@@ -32,8 +32,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'cities'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, cities]) => {
     window.__models = models; window.__geo = geo;
     stats(counts, life, pools, mapd);
     population(counts);
@@ -41,6 +41,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     modelChart(models);
     geoChart(geo);
     worldMap(world, mapd);
+    cityMap(world, cities);
     bubbles(octets);
     versionSurvey(survey);
     strangeSection(strange);
@@ -65,6 +66,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     poolScatter(pools); composition(pools);
       drawFrame(octets, +$('frame').value);
       worldMap(world, mapd);
+      cityMap(world, cities);
     }, 180));
   })
   .catch(err => {
@@ -472,11 +474,10 @@ function worldMap(world, M) {
     if (!c) return null;
     const srv = win(c.srv, m);
     if (!srv) return null;
-    if (srv < M.min_n) return { thin: true, srv };
     const key = sel.value || 'lean';
     if (key === 'lean') {
       const us = win(c.o.US, m), cn = win(c.o.CN, m);
-      if (us + cn < MIN_INSTALLS) return { thin: true, srv };
+      if (us + cn === 0) return null;
       const d = (cn - us) / (cn + us);
       return { d, srv, installs: us + cn,
         label: d > 0 ? `${(d * 100).toFixed(0)}% toward Chinese labs`
@@ -484,10 +485,10 @@ function worldMap(world, M) {
         detail: `${cn} installs from Chinese labs · ${us} from American` };
     }
     const inst = base_of(c, key, m);
-    if (inst < MIN_INSTALLS) return { thin: true, srv };
+    if (!inst) return null;
     const num = pick(c, key, m);
     const rate = num / inst, base = window.__mapBase;
-    if (!base) return { thin: true, srv };
+    if (!base) return null;
     // log ratio, squashed to -1..1 so the diverging breaks are symmetric
     const d = Math.max(-1, Math.min(1, Math.log2(rate / base) / 2));
     return { d, srv, rate, base, installs: inst,
@@ -520,8 +521,8 @@ function worldMap(world, M) {
       window.__mapBase = worldBase(m);
       const r = metric(f.cc, m);
       const body = !r ? 'no servers seen'
-        : r.thin ? `only ${r.srv} server${r.srv === 1 ? '' : 's'} here, too small a sample to compare`
-        : `<b>${r.label}</b><br>${r.detail}`;
+        : `<b>${r.label}</b><br>${r.detail}`
+          + (r.installs < 30 ? '<br><span style="color:var(--text-muted)">small sample</span>' : '');
       showTip(`<div class="d">${f.n} · ${M.months[m]}</div>${body}`, ev);
     });
     p.addEventListener('mouseleave', hideTip);
@@ -541,9 +542,11 @@ function worldMap(world, M) {
     for (const cc in paths) {
       const r = metric(cc, m);
       let fill = 'url(#nodata)', op = 1;
-      if (r && !r.thin) {
+      if (r) {
         fill = ramp(0.5 + 0.5 * Math.tanh(r.d * 2.2)); // spread the clustered mid-range
-        op = 0.9;
+        // fade in with sample size so a country doesn't blink on and off as it
+        // crosses a threshold; full strength by ~300 installs
+        op = 0.08 + 0.82 * Math.min(1, (r.installs || 0) / 300);
         scored.push([cc, r]);
       }
       for (const el of paths[cc]) { el.setAttribute('fill', fill);
@@ -559,7 +562,7 @@ function worldMap(world, M) {
       + `background:linear-gradient(90deg,${ramp(0)},${ramp(0.5)},${ramp(1)})"></i>`
       + `<span class="b">${hiLab}</span>`
       + `<span class="b" style="margin-left:14px"><i style="background:var(--land);`
-      + `background-image:repeating-linear-gradient(45deg,var(--coast) 0 2px,transparent 2px 6px)"></i>too few</span>`;
+      + `background-image:repeating-linear-gradient(45deg,var(--coast) 0 2px,transparent 2px 6px)"></i>no data</span>`;
 
     // rank only where the sample can carry it: 8 servers all running one lab's
     // models is a +100 that means nothing
@@ -1079,4 +1082,97 @@ function blockTip(e, day0) {
     <div style="margin-top:6px;color:var(--text-muted);font-size:11px">its daily changes;
       red is this one</div>
     <svg width="${BINS * bw}" height="${hgt}" style="margin-top:2px">${bars}</svg>`;
+}
+
+
+/* ---------------------------------------------------------- city dot map */
+function cityMap(world, data) {
+  const host = $('citymap');
+  const W = host.clientWidth || 1100, H = Math.round(W * 0.46);
+  const LAT0 = 84, LAT1 = -58;
+  const X = lon => (lon + 180) / 360 * W;
+  const Y = lat => (LAT0 - lat) / (LAT0 - LAT1) * H;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+
+  // faint land underneath
+  for (const f of world) {
+    const d = f.g.map(r => r.map((p, i) =>
+      (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('') + 'Z').join('');
+    svg.append(el('path', { d, fill: 'var(--land)', stroke: 'var(--coast)',
+      'stroke-width': 0.5, 'vector-effect': 'non-scaling-stroke' }));
+  }
+
+  const css = getComputedStyle(document.body);
+  const BLUE = css.getPropertyValue('--map-blue') || '#2f7fd6';
+  const PINK = css.getPropertyValue('--map-pink') || '#d63f95';
+  const ramp = t => blendOklab(BLUE, PINK, Math.max(0, Math.min(1, t)));
+  const maxN = Math.max(...data.cities.map(c => c[2]));
+
+  // biggest first so small dots draw on top and stay hoverable
+  const cities = [...data.cities].sort((a, b) => b[2] - a[2]);
+  for (const [lat, lon, n, cc, city, lean] of cities) {
+    const r = 2 + Math.sqrt(n / maxN) * 22;
+    const fill = lean == null ? 'var(--text-muted)' : ramp(0.5 + 0.5 * Math.tanh(lean * 2.2));
+    const c = el('circle', { cx: X(lon), cy: Y(lat), r, fill, 'fill-opacity': 0.62,
+      stroke: 'var(--surface-1)', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' });
+    c.addEventListener('mousemove', ev => showTip(
+      `<div class="d">${city}, ${cc}</div><b>${n.toLocaleString()}</b> servers` +
+      (lean == null ? '' : `<br>${lean > 0 ? (lean * 100).toFixed(0) + '% toward Chinese labs'
+        : (-lean * 100).toFixed(0) + '% toward American labs'}`), ev));
+    c.addEventListener('mouseleave', hideTip);
+    svg.append(c);
+  }
+  host.replaceChildren(svg);
+  addZoom(host, svg, W, H);
+}
+
+/* viewBox pan/zoom with +/- buttons, drag, and wheel */
+function addZoom(host, svg, W, H) {
+  let k = 1, cx = W / 2, cy = H / 2;
+  const apply = () => {
+    k = Math.max(1, Math.min(14, k));
+    const vw = W / k, vh = H / k;
+    cx = Math.max(vw / 2, Math.min(W - vw / 2, cx));
+    cy = Math.max(vh / 2, Math.min(H - vh / 2, cy));
+    svg.setAttribute('viewBox', `${cx - vw / 2} ${cy - vh / 2} ${vw} ${vh}`);
+  };
+  const zoomAt = (factor, px, py) => {
+    // keep the point under the cursor fixed
+    const vw = W / k, vh = H / k;
+    const wx = cx - vw / 2 + (px / host.clientWidth) * vw;
+    const wy = cy - vh / 2 + (py / (host.clientWidth * H / W)) * vh;
+    k *= factor;
+    const nvw = W / Math.max(1, Math.min(14, k)), nvh = H / Math.max(1, Math.min(14, k));
+    cx = wx - (px / host.clientWidth - 0.5) * nvw;
+    cy = wy - (py / (host.clientWidth * H / W) - 0.5) * nvh;
+    apply();
+  };
+  const btns = document.createElement('div');
+  btns.className = 'zoombtns';
+  btns.innerHTML = '<button aria-label="zoom in">+</button><button aria-label="zoom out">\u2212</button>';
+  const [zin, zout] = btns.querySelectorAll('button');
+  zin.onclick = () => { k *= 1.6; apply(); };
+  zout.onclick = () => { k /= 1.6; apply(); };
+  host.append(btns);
+  svg.style.cursor = 'grab';
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = host.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - rect.left, e.clientY - rect.top);
+  }, { passive: false });
+  let drag = null;
+  svg.addEventListener('pointerdown', e => {
+    drag = { x: e.clientX, y: e.clientY }; svg.setPointerCapture(e.pointerId);
+    svg.style.cursor = 'grabbing';
+  });
+  svg.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const s = (W / k) / host.clientWidth;
+    cx -= (e.clientX - drag.x) * s; cy -= (e.clientY - drag.y) * s;
+    drag = { x: e.clientX, y: e.clientY }; apply();
+  });
+  const end = () => { drag = null; svg.style.cursor = 'grab'; };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
 }
