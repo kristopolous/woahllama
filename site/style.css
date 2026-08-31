@@ -73,6 +73,7 @@ header { padding: 56px 0 28px; border-bottom: 1px solid var(--border); margin-bo
 h1 { font-size: 40px; letter-spacing: -0.03em; margin: 0 0 6px; font-weight: 650; }
 h1 .dim { color: var(--text-muted); font-weight: 400; }
 .sub { color: var(--text-secondary); max-width: 68ch; margin: 0; }
+.byline { color: var(--text-muted); font-size: 12.5px; margin: 8px 0 0; }
 h2 { font-size: 19px; letter-spacing: -0.01em; margin: 0 0 4px; font-weight: 620; }
 .note { color: var(--text-secondary); font-size: 13px; margin: 0 0 16px; max-width: 76ch; }
 section { margin: 44px 0 0; }

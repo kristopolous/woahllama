@@ -870,14 +870,57 @@ function strangeSection(S) {
         <td class="n" style="width:70px">${n.toLocaleString()}</td></tr>`;
     }).join('') + '</tbody></table>';
 
-  $('invented').innerHTML = '<thead><tr><th>server</th><th>claims to be</th>'
-    + '<th style="text-align:right">reports</th><th style="text-align:right">real size</th>'
-    + '<th style="text-align:right">out by</th></tr></thead><tbody>'
-    + S.invented.examples.map(([url, name, got, real, ratio]) =>
-        `<tr><td><code>${url}</code></td><td><code>${name}</code></td>
-         <td class="n">${(got / 1e9).toFixed(1)} GB</td>
-         <td class="n">${(real / 1e9).toFixed(1)} GB</td>
-         <td class="n">${ratio}×</td></tr>`).join('') + '</tbody>';
+  // dumbbell: real published size (small dot) vs the size the host reports (big dot)
+  (function () {
+    const host = $('invented');
+    const rows = S.invented.examples.slice(0, 12);
+    const W = host.clientWidth || 1000, rowH = 30;
+    const M = { t: 26, r: 66, b: 6, l: 196 };
+    const H = rows.length * rowH + M.t + M.b, iw = W - M.l - M.r;
+    const gb = b => b / 1e9;
+    const lo = Math.min(...rows.map(r => Math.min(gb(r[2]), gb(r[3])))) * 0.7;
+    const hi = Math.max(...rows.map(r => Math.max(gb(r[2]), gb(r[3])))) * 1.3;
+    const X = g => M.l + (Math.log10(g) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * iw;
+    const REAL = 'var(--series-3)', REP = 'var(--series-8)';
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (const g of [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]) {
+      if (g < lo || g > hi) continue;
+      grid.append(el('line', { x1: X(g), x2: X(g), y1: M.t - 6, y2: H - M.b }));
+      axis.append(el('text', { x: X(g), y: M.t - 12, 'text-anchor': 'middle' },
+        g >= 1000 ? (g / 1000) + 'TB' : g + 'GB'));
+    }
+    svg.append(grid, axis);
+    rows.forEach(([url, name, got, real, ratio], i) => {
+      const y = M.t + i * rowH + rowH / 2;
+      const xr = X(gb(real)), xg = X(gb(got));
+      const g = el('g');
+      g.append(el('text', { x: M.l - 12, y: y + 4, 'text-anchor': 'end',
+        style: 'fill:var(--text-secondary);font-size:12px;font-family:ui-monospace,Menlo,monospace' },
+        name.length > 24 ? name.slice(0, 23) + '…' : name));
+      g.append(el('line', { x1: xr, x2: xg, y1: y, y2: y,
+        stroke: 'var(--text-muted)', 'stroke-width': 2 }));
+      g.append(el('circle', { cx: xr, cy: y, r: 4.5, fill: REAL,
+        stroke: 'var(--surface-1)', 'stroke-width': 1.5 }));
+      g.append(el('circle', { cx: xg, cy: y, r: 6.5, fill: REP,
+        stroke: 'var(--surface-1)', 'stroke-width': 1.5 }));
+      g.append(el('text', { x: W - M.r + 10, y: y + 4,
+        style: 'fill:var(--text-primary);font-size:12px;font-family:ui-monospace,Menlo,monospace' },
+        ratio + '\u00d7'));
+      const hit = el('rect', { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: 'transparent' });
+      hit.addEventListener('mousemove', ev => showTip(
+        `<b>${name}</b><br>reports ${gb(got).toFixed(1)} GB<br>real ${gb(real).toFixed(1)} GB` +
+        `<br>out by ${ratio}\u00d7`, ev));
+      hit.addEventListener('mouseleave', hideTip);
+      g.append(hit);
+      svg.append(g);
+    });
+    host.replaceChildren(svg);
+    legend($('invented-legend'), [
+      { name: 'real published size', color: REAL },
+      { name: 'size the host reports', color: REP },
+    ]);
+  })();
 
   $('hoarders').innerHTML = '<thead><tr><th>server</th><th>where</th>'
     + '<th style="text-align:right">models</th>'

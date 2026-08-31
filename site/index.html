@@ -21,6 +21,7 @@
   <h1>woah<span class="dim">…</span>llama</h1>
   <p class="sub">Eighteen months of unsecured Ollama servers, reconstructed from the
   commit history of three scanners that publish what they find.</p>
+  <p class="byline">Last updated: August 30, 2026</p>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -274,9 +275,10 @@
   <div class="card" style="margin-top:16px">
     <h2 style="font-size:15px">Sizes that don't match the real blobs</h2>
     <p class="note">ollama.com publishes the real blob size of every library tag, so a
-    reported size can be checked against an outside fact. These report a tag whose real
-    published size is nothing like the number they give for it.</p>
-    <div class="scroll"><table class="data" id="invented"></table></div>
+    reported size can be checked against an outside fact. Each row is one host: the small
+    dot is the tag's real published size, the large dot the size it reports for that tag.</p>
+    <div id="invented"></div>
+    <div class="legend" id="invented-legend"></div>
   </div>
 
   <div class="card" style="margin-top:16px">
