@@ -2,20 +2,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>woah…llama</title>
+
+<!-- Open Graph / social cards. Set BASE below to the deployed URL so the image
+     resolves; unfurlers require an absolute og:image. -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="woah…llama">
+<meta property="og:description" content="Eighteen months of unsecured Ollama servers, reconstructed from scanner commit histories. What the internet is running, and what only looks like it.">
+<meta property="og:image" content="https://kristopolous.github.io/woahllama/og.png">
+<meta property="og:url" content="https://kristopolous.github.io/woahllama/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="woah…llama">
+<meta name="twitter:description" content="Eighteen months of unsecured Ollama servers: what the internet is running, and what only looks like it.">
+<meta name="twitter:image" content="https://kristopolous.github.io/woahllama/og.png">
+
 <link rel="stylesheet" href="style.css">
 
 <div class="wrap">
 <header>
   <h1>woah<span class="dim">…</span>llama</h1>
   <p class="sub">Eighteen months of unsecured Ollama servers, reconstructed from the
-  commit history of three scanners that publish what they find. Every point below is
-  a git commit somebody's cron job made and forgot about.</p>
+  commit history of three scanners that publish what they find.</p>
   <div class="stats" id="stats"></div>
 </header>
 
 <div class="chapter">
   <div class="chapter-num">Chapter 1</div>
-  <h2 class="chapter-title">What's actually out there</h2>
+  <h2 class="chapter-title">What's out there</h2>
   <p class="chapter-lede">The survey proper, built from the two feeds that verify their
   hosts. Thousands of real machines have Ollama left open on the internet. This is what
   they are running, where, and for how long.</p>
@@ -23,8 +35,8 @@
 <section>
   <h2>Where the open servers are</h2>
   <p class="note">Each country's share of model installs that come from Chinese labs
-  versus American ones. Orange leans Chinese, blue leans American, grey sits at even.
-  The menu switches to other slices: the share running an uncensored model, a 30B-plus
+  versus American ones.
+  The buttons above switch to other slices: the share running an uncensored model, a 30B-plus
   model, or four-bit weights. Each frame counts a five-month window. Countries with too
   few servers to rate are hatched.</p>
   <div class="card">
@@ -160,7 +172,7 @@
 <div class="chapter">
   <div class="chapter-num">Chapter 2</div>
   <h2 class="chapter-title">Unexpected behavior</h2>
-  <p class="chapter-lede">A separate thread. One of the three scanners, OllamaSpider,
+  <p class="chapter-lede">One of the three scanners, OllamaSpider,
   scrapes Shodan and sweeps up hundreds of live hosts that respond to the Ollama API
   unlike a normal server. They report the same fixed model list everywhere, sizes constant
   to the byte, a handful of rotating version strings, and chat replies drawn from a small

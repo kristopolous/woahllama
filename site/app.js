@@ -108,7 +108,42 @@ function stats(counts, life, pools, mapd) {
   $('stats').innerHTML = cells.map(([v, k, s]) =>
     `<div class="stat"><div class="v">${v}</div>
      <div class="k"><b>${k}</b><br>${s}</div></div>`).join('');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const run = () => $('stats').querySelectorAll('.v')
+    .forEach((el, i) => countUp(el, cells[i][0]));
+  if (reduce) { /* leave the final values in place */ }
+  else if (document.hidden) {
+    // rAF is paused in a background tab; animate when it first becomes visible
+    const once = () => { if (!document.hidden) {
+      document.removeEventListener('visibilitychange', once); run(); } };
+    document.addEventListener('visibilitychange', once);
+  } else run();
   void yr;
+}
+
+/* count a stat value up from zero on load, preserving its prefix/suffix and
+   number format (commas, one decimal, %, d) */
+function countUp(el, finalStr) {
+  const m = String(finalStr).match(/^(\D*?)([\d,]+(?:\.\d+)?)(\D*)$/);
+  if (!m) { el.textContent = finalStr; return; }
+  const [, pre, numStr, suf] = m;
+  const comma = numStr.includes(',');
+  const dec = (numStr.split('.')[1] || '').length;
+  const target = parseFloat(numStr.replace(/,/g, ''));
+  const fmt = v => {
+    let s = dec ? v.toFixed(dec) : String(Math.round(v));
+    if (comma) s = Number(s).toLocaleString('en-US',
+      dec ? { minimumFractionDigits: dec } : {});
+    return pre + s + suf;
+  };
+  const dur = 950, t0 = performance.now();
+  const step = now => {
+    let p = Math.min(1, (now - t0) / dur);
+    p = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(target * p);
+    if (p < 1) requestAnimationFrame(step); else el.textContent = finalStr;
+  };
+  requestAnimationFrame(step);
 }
 
 /* -------------------------------------------------------------- population */
