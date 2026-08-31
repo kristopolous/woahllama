@@ -81,6 +81,11 @@ def _candidate_bases(base):
     alias = re.sub(r'[-_](backup|copy|bak)\d*$', '', tail, flags=re.I)
     if alias != tail:
         cands.append(alias)
+    # a trailing -v1.5 style version suffix the library base doesn't carry
+    for c in list(cands):
+        v = re.sub(r'-v\d+(?:\.\d+)*$', '', c, flags=re.I)
+        if v != c and v not in cands:
+            cands.append(v)
     return cands
 
 def resolve_params(name):
