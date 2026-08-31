@@ -108,6 +108,7 @@ button:hover, select:hover { border-color: var(--text-muted); }
   -webkit-user-select: none; user-select: none; }
 .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
 .legend .off { opacity: .35; }
+.legend span.active { color: var(--text-primary); font-weight: 600; }
 
 svg { display: block; width: 100%; overflow: visible; }
 canvas { display: block; width: 100%; }

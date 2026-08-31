@@ -260,7 +260,10 @@ function drawFrame(oct, f) {
   const M = { t: 12, r: 12, b: 34, l: 46 };
   const iw = w - M.l - M.r, ih = h - M.t - M.b;
   const css = getComputedStyle(document.body);
-  const vi = (+$('oct-vendor').dataset.i || 0) - 1;   // -1 = all servers
+  const sel = $('oct-vendor');
+  const active = sel.dataset.hover !== undefined
+    ? +sel.dataset.hover : (+sel.dataset.i || 0);
+  const vi = active - 1;   // -1 = all servers, else index into oct.vendors
 
   g.clearRect(0, 0, w, h);
   g.strokeStyle = css.getPropertyValue('--grid'); g.lineWidth = 1;
@@ -284,42 +287,45 @@ function drawFrame(oct, f) {
     const [o1, o2] = oct.cells[frame[i]], n = frame[i + 1];
     const x = M.l + o1 / 256 * iw, y = M.t + ih - o2 / 256 * ih;
     const r = 2 + Math.sqrt(n / maxv) * 17;
+    let alpha;
     if (vi < 0) {
-      g.fillStyle = css.getPropertyValue('--series-1'); g.globalAlpha = 0.5;
+      g.fillStyle = css.getPropertyValue('--series-1'); alpha = 0.5;
     } else {
-      const share = n ? frame[i + 2 + vi] / n * 100 : 0;
-      let k = 0;
-      while (k < OCT_BREAKS.length && share >= OCT_BREAKS[k]) k++;
-      g.fillStyle = css.getPropertyValue(share ? `--seq-${Math.max(1, k)}` : '--seq-0');
-      g.globalAlpha = share ? 0.92 : 0.3;
+      // colour by the selected lab; how solid = its share of that /16
+      const share = n ? frame[i + 2 + vi] / n : 0;
+      g.fillStyle = css.getPropertyValue(`--series-${vi + 1}`);
+      alpha = 0.08 + 0.85 * share;
     }
+    g.globalAlpha = alpha;
     g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-    g.globalAlpha = 1; g.strokeStyle = ring; g.lineWidth = 1.5; g.stroke();
+    g.globalAlpha = Math.min(alpha, 0.5); g.strokeStyle = ring; g.lineWidth = 1.5; g.stroke();
+    g.globalAlpha = 1;
   }
   $('frame-date').textContent =
     new Date((oct.day0 + f * 7 * 86400) * 1000).toISOString().slice(0, 10);
-  $('oct-ramp').innerHTML = vi < 0 ? '' : 'share of that /16 '
-    + [0, ...OCT_BREAKS].map((b, i) => {
-      const hi = OCT_BREAKS[i];
-      return `<span class="b"><i style="background:var(--seq-${i})"></i>${
-        !b ? '0' : hi ? `${b}\u2013${hi}%` : `${b}%+`}</span>`;
-    }).join('');
+  $('oct-ramp').textContent = vi < 0
+    ? '' : `bolder = more of that /16 runs ${oct.vendors[vi]}`;
 }
 
 function bubbles(oct) {
   const sel = $('oct-vendor');
+  const redraw = () => drawFrame(oct, +$('frame').value);
   if (!sel.dataset.built) {
-    sel.className = 'pills';
-    sel.innerHTML = ['All servers', ...oct.vendors].map((v, i) =>
-      `<button class="pill" data-i="${i}"${i === 0 ? ' aria-pressed="true"' : ''}>${v}</button>`).join('');
-    sel.dataset.built = '1'; sel.dataset.i = '0';
-    sel.onclick = e => {
-      const b = e.target.closest('.pill');
-      if (!b) return;
-      sel.dataset.i = b.dataset.i;
-      sel.querySelectorAll('.pill').forEach(x => x.setAttribute('aria-pressed', x === b));
-      drawFrame(oct, +$('frame').value);
-    };
+    sel.className = 'legend';
+    const items = [{ label: 'All servers', color: 'var(--series-1)' },
+      ...oct.vendors.map((v, k) => ({ label: v, color: `var(--series-${k + 1})` }))];
+    const mark = () => sel.querySelectorAll('span').forEach(s =>
+      s.classList.toggle('active', s.dataset.i === sel.dataset.i));
+    sel.replaceChildren(...items.map((it, i) => {
+      const sp = document.createElement('span');
+      sp.dataset.i = i;
+      sp.innerHTML = `<i style="background:${it.color}"></i>${it.label}`;
+      sp.addEventListener('mouseenter', () => { sel.dataset.hover = i; redraw(); });
+      sp.addEventListener('mouseleave', () => { delete sel.dataset.hover; redraw(); });
+      sp.addEventListener('click', () => { sel.dataset.i = i; mark(); redraw(); });
+      return sp;
+    }));
+    sel.dataset.built = '1'; sel.dataset.i = '0'; mark();
   }
   const slider = $('frame');
   slider.max = oct.nweeks - 1;
