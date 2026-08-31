@@ -1023,14 +1023,24 @@ function blocksChart(models, vendors) {
   for (const e of ev) {
     const c = el('circle', { cx: X(e.day), cy: Y(e.z), r: R(e.delta),
       fill: colOf(e), 'fill-opacity': 0.62,
-      stroke: 'var(--surface-1)', 'stroke-width': 1 });
+      stroke: 'var(--surface-1)', 'stroke-width': 1,
+      'data-vendor': models.vendor[e.name] || 'other' });
     c.addEventListener('mousemove', ev2 => showTip(blockTip(e, day0), ev2));
     c.addEventListener('mouseleave', hideTip);
     svg.append(c);
   }
   host.replaceChildren(svg);
-  legend($('blocks-legend'),
-    vc.top.map(v => ({ name: v, color: vc.map[v] })));
+  const lg = $('blocks-legend');
+  const dim = v => svg.querySelectorAll('circle').forEach(c =>
+    c.setAttribute('fill-opacity',
+      v === null || c.getAttribute('data-vendor') === v ? 0.62 : 0.05));
+  lg.replaceChildren(...vc.top.map(v => {
+    const sp = document.createElement('span');
+    sp.innerHTML = `<i style="background:${vc.map[v]}"></i>${v}`;
+    sp.addEventListener('mouseenter', () => dim(v));
+    sp.addEventListener('mouseleave', () => dim(null));
+    return sp;
+  }));
 }
 
 /* tooltip: the event, plus a mini histogram of the model's daily changes with

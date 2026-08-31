@@ -104,7 +104,8 @@ button:hover, select:hover { border-color: var(--text-muted); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 2px;
   font-size: 12.5px; color: var(--text-secondary); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  -webkit-user-select: none; user-select: none; }
 .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
 .legend .off { opacity: .35; }
 
@@ -178,7 +179,8 @@ pre { background: var(--surface-2); border: 1px solid var(--border); border-radi
 .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .pill { font: inherit; font-size: 12.5px; color: var(--text-secondary);
   background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
+  border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  -webkit-user-select: none; user-select: none; }
 .pill:hover { border-color: var(--text-muted); color: var(--text-primary); }
 .pill[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1);
   border-color: var(--text-primary); }
