@@ -29,7 +29,35 @@ def params_b(name):
     return best
 
 
+# resolve a base:latest (or any untagged size) to a parameter count via the
+# ollama.com library cache: the tag's manifest digest matches a sized sibling tag.
+_LIB = {}
+_DIGEST_P = {}
+def _load_lib():
+    f = ROOT / "pipeline" / "library_cache.json"
+    if not f.exists():
+        return
+    _LIB.update(json.loads(f.read_text()))
+    for base, tags in _LIB.items():
+        for tag, v in tags.items():
+            pb = params_b(tag)
+            if pb is not None:
+                _DIGEST_P.setdefault((base, v["digest"]), pb)
+
+def resolve_params(name):
+    pb = params_b(name)
+    if pb is not None:
+        return pb
+    if "/" in name:                      # namespaced / hf.co uploads: not in the library
+        return None
+    base, _, tag = name.partition(":")
+    entry = _LIB.get(base, {}).get(tag or "latest") or _LIB.get(base, {}).get("latest")
+    if entry:
+        return _DIGEST_P.get((base, entry["digest"]))
+    return None
+
 def main():
+    _load_lib()
     if not SRC.exists():
         print("  wider survey absent (private); keeping existing hoarding.json")
         return
@@ -50,7 +78,7 @@ def main():
         base = name.split("/")[-1].split(":")[0]
         safe = re.sub(r'(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}', r'\1.\2.x.x', name)
         models.append([safe, len(sizes), round(statistics.mean(sizes), 1),
-                       vendor_of(name), params_b(name)])
+                       vendor_of(name), resolve_params(name)])
     models.sort(key=lambda r: -r[2])
 
     out = {
