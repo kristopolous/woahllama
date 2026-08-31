@@ -56,8 +56,10 @@
     </div>
   </div>
   <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">The same thing as trend lines</h2>
-    <p class="note">The top countries as server counts over time.</p>
+    <h2 style="font-size:15px">Country mix over time</h2>
+    <p class="note">Each country's share of the exposed servers, stacked to 100%. Reading
+    it as a share rather than a raw count cancels out the swings in how much the scanners
+    covered at any moment, so what's left is the composition.</p>
     <div id="geo"></div>
     <div class="legend" id="geo-legend"></div>
   </div>
@@ -86,7 +88,8 @@
 </section>
 <section>
   <h2>Individual models</h2>
-  <p class="note">Tags collapsed to the base name. Pick any model to add or drop it.</p>
+  <p class="note">Each model as a share of the exposed servers over time, so the survey\u2019s
+  changing coverage cancels out. Tags collapsed to the base name; pick any model to add or drop it.</p>
   <div class="card">
     <div class="controls">
       <select id="model-pick"></select>

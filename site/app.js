@@ -34,7 +34,7 @@ const pair = (onA, onB, a, b, fn) => {
 
 Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding'].map(load))
   .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding]) => {
-    window.__models = models; window.__geo = geo;
+    window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
     population(counts);
     vendorChart(vendors, counts);
@@ -227,10 +227,13 @@ function modelChart(models, keep) {
     };
     $('model-reset').onclick = () => { modelPick = null; modelChart(models); };
   }
+  const tot = (window.__counts && window.__counts.clean) || null;
+  const share = arr => smooth(arr.map((v, d) => tot && tot[d] ? v / tot[d] * 100 : 0));
   const series = modelPick.map((n, i) => ({
-    name: n, color: SERIES_COLORS[i % 8], values: smooth(models.clean[n]),
+    name: n, color: SERIES_COLORS[i % 8], values: share(models.clean[n]),
   }));
-  timeChart($('models'), { ...models, series, height: 300 });
+  timeChart($('models'), { ...models, series, height: 300,
+    valueFormat: v => v.toFixed(1) + '%', yFormat: v => v + '%' });
   legend($('models-legend'), series, s => {
     modelPick = modelPick.filter(n => n !== s.name);
     modelChart(models, true);
@@ -239,10 +242,21 @@ function modelChart(models, keep) {
 
 /* --------------------------------------------------------------- geography */
 function geoChart(geo, keep) {
-  const cc = geo.clean;
-  const top = Object.keys(cc).sort((a, b) => Math.max(...cc[b]) - Math.max(...cc[a])).slice(0, 8);
-  const series = top.map((k, i) => ({ name: k, color: SERIES_COLORS[i], values: smooth(cc[k]) }));
-  timeChart($('geo'), { ...geo, series, height: 320 });
+  const cc = geo.clean, N = geo.ndays;
+  // total across ALL countries per day, so the stack is a true share and the
+  // survey's swings in coverage cancel out
+  const total = new Array(N).fill(0);
+  for (const k in cc) for (let d = 0; d < N; d++) total[d] += cc[k][d];
+  const top = Object.keys(cc).sort((a, b) => Math.max(...cc[b]) - Math.max(...cc[a])).slice(0, 7);
+  const share = arr => smooth(arr.map((v, d) => total[d] ? v / total[d] * 100 : 0));
+  const series = top.map((k, i) => ({ name: k, color: SERIES_COLORS[i], values: share(cc[k]) }));
+  // everything else, as one band, so the stack reaches 100%
+  const topSum = top.map(k => cc[k]);
+  const other = total.map((tot, d) =>
+    tot ? (tot - topSum.reduce((s, a) => s + a[d], 0)) / tot * 100 : 0);
+  series.push({ name: 'Other', color: 'var(--decoy)', values: smooth(other) });
+  timeChart($('geo'), { day0: geo.day0, ndays: N, series, stacked: true, percent: true,
+    height: 320, hideZero: true, yFormat: v => v + '%', valueFormat: v => v.toFixed(1) + '%' });
   legend($('geo-legend'), series);
 }
 
