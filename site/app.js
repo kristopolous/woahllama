@@ -425,7 +425,7 @@ const WINDOW = 10;  // weeks either side: a ~5-month sample sits behind every
 
 function worldMap(world, M) {
   const host = $('map');
-  const W = host.clientWidth || 1100, H = Math.round(W * 0.46);
+  const W = host.clientWidth || 1100, H = Math.round(W * (W < 620 ? 0.72 : 0.46));
   const LAT0 = 84, LAT1 = -58;
   const X = lon => (lon + 180) / 360 * W;
   const Y = lat => (LAT0 - lat) / (LAT0 - LAT1) * H;
