@@ -175,7 +175,7 @@
   <h2 class="chapter-title">Unexpected behavior</h2>
   <p class="chapter-lede">One of the three scanners, OllamaSpider,
   scrapes Shodan and sweeps up hundreds of live hosts that respond to the Ollama API
-  unlike a normal server. They report the same fixed model list everywhere, sizes constant
+  unlike a normal server. Each reports some subset of one small, fixed pool of old models, sizes constant
   to the byte, a handful of rotating version strings, and chat replies drawn from a small
   phrase bank, and almost none of them can answer a simple question. In a fresh 4,407-host
   snapshot they are about a third of everything answering as Ollama. The other two-thirds
@@ -192,12 +192,14 @@
   of hosts in a specific feed.</p>
   <p class="note">These hosts are <b>live and responding</b>. Something on each one answers
   the Ollama API with a model list, a version string, a chat reply. All of them advertise
-  the same six <b>old, unremarkable</b> models (<code>llama2</code>,
-  <code>qwen2.5:1.5b</code>, <code>codellama:13b</code>, <code>openchat:7b</code>,
-  <code>llama3</code>, <code>deepseek-r1</code>), frozen since early 2024, each at a size
-  constant to the byte across every host. Ask one a question and the reply reads like
+  some subset of one small, fixed pool of <b>old, unremarkable</b> models
+  (<code>llama2:latest</code>, <code>llama3:latest</code>, <code>openchat:7b</code>,
+  <code>qwen2.5:1.5b</code> and a couple of others), frozen since early 2024, each at a
+  size constant to the byte wherever it appears. Ask one a question and the reply reads like
   filler from a small phrase bank rather than a model's answer. Ask its version and you get
-  one of four fixed strings. It is hundreds of hosts actively answering, and answering the
+  one of four fixed strings. Ask a model for its details and the response is empty, yet the
+  running-model endpoint reports every one of them loaded and running at once, which no
+  real host does. It is hundreds of hosts actively answering, and answering the
   same narrow way.</p>
 
   <div class="card" style="margin-top:24px">
@@ -213,9 +215,10 @@
   </div>
 
   <div class="card" style="margin-top:24px">
-    <h2 style="font-size:15px">One model list, every host the same</h2>
-    <p class="note">The inventory these hosts report, byte-for-byte, every one the same. It
-    is also the most common single catalogue in the feed:</p>
+    <h2 style="font-size:15px">One tiny pool of models</h2>
+    <p class="note">Hosts report a subset of the same handful of models, at sizes constant
+    to the byte. The most common single catalogue in the feed, reported in full by tens of
+    thousands of them, is:</p>
     <pre id="phantom-cat"></pre>
     <p class="note" id="phantom-note"></p>
     <p class="note">Each model's size is constant to the byte, where genuinely pulled
