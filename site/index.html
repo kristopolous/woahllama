@@ -202,8 +202,10 @@
   filler from a small phrase bank rather than a model's answer. Ask its version and you get
   one of four fixed strings. Ask a model for its details and the response is empty, yet the
   running-model endpoint reports every one of them loaded and running at once, which no
-  real host does. It is hundreds of hosts actively answering, and answering the
-  same narrow way.</p>
+  real host does. Ask it to run a model that does not exist and it answers anyway; tell it
+  to pull or delete a model and it reports success while nothing changes. Every command
+  fails the same way: it always says yes. It is hundreds of hosts actively answering, and
+  answering the same narrow way.</p>
 
   <div class="card" style="margin-top:24px">
     <h2 style="font-size:15px">A cleaner test: ask for the version</h2>
