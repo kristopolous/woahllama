@@ -216,7 +216,7 @@ function drawFrame(oct, f) {
   const M = { t: 12, r: 12, b: 34, l: 46 };
   const iw = w - M.l - M.r, ih = h - M.t - M.b;
   const css = getComputedStyle(document.body);
-  const vi = $('oct-vendor').selectedIndex - 1;   // -1 = all servers
+  const vi = (+$('oct-vendor').dataset.i || 0) - 1;   // -1 = all servers
 
   g.clearRect(0, 0, w, h);
   g.strokeStyle = css.getPropertyValue('--grid'); g.lineWidth = 1;
@@ -264,16 +264,24 @@ function drawFrame(oct, f) {
 
 function bubbles(oct) {
   const sel = $('oct-vendor');
-  if (!sel.options.length) {
-    sel.innerHTML = '<option>All servers</option>'
-      + oct.vendors.map(v => `<option>${v}</option>`).join('');
+  if (!sel.dataset.built) {
+    sel.className = 'pills';
+    sel.innerHTML = ['All servers', ...oct.vendors].map((v, i) =>
+      `<button class="pill" data-i="${i}"${i === 0 ? ' aria-pressed="true"' : ''}>${v}</button>`).join('');
+    sel.dataset.built = '1'; sel.dataset.i = '0';
+    sel.onclick = e => {
+      const b = e.target.closest('.pill');
+      if (!b) return;
+      sel.dataset.i = b.dataset.i;
+      sel.querySelectorAll('.pill').forEach(x => x.setAttribute('aria-pressed', x === b));
+      drawFrame(oct, +$('frame').value);
+    };
   }
   const slider = $('frame');
   slider.max = oct.nweeks - 1;
   slider.value = oct.nweeks - 1;
   const stop = () => { if (playing) { clearInterval(playing); playing = null; $('play').textContent = '\u25b6 Play'; } };
   slider.oninput = () => { stop(); drawFrame(oct, +slider.value); };
-  sel.onchange = () => drawFrame(oct, +slider.value);
   $('play').onclick = () => {
     if (playing) return stop();
     if (+slider.value >= oct.nweeks - 1) slider.value = 0;
@@ -464,7 +472,7 @@ function worldMap(world, M) {
       const r = metric(cc, m);
       let fill = 'url(#nodata)', op = 1;
       if (r && !r.thin) {
-        fill = ramp((r.d + 1) / 2);   // r.d in [-1,1] -> weighted blue..pink
+        fill = ramp(0.5 + 0.5 * Math.tanh(r.d * 2.2)); // spread the clustered mid-range
         op = 0.9;
         scored.push([cc, r]);
       }
