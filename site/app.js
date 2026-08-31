@@ -657,6 +657,7 @@ function worldMap(world, M) {
     const fmt = ([nm, r]) => `<b>${nm}</b> ${lean
       ? (r.d > 0 ? '+' : '') + (r.d * 100).toFixed(0)
       : (r.rate / r.base).toFixed(1) + '×'}`;
+
     $('map-lead').innerHTML = rank.length
       ? (lean ? 'most Chinese: ' : 'highest: ') + rank.slice(0, 3).map(fmt).join(' · ')
         + (lean ? ' &nbsp;·&nbsp; most American: ' + rank.slice(-3).reverse().map(fmt).join(' · ') : '')
