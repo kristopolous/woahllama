@@ -90,6 +90,14 @@ def main():
         flat_run(P / "qwen25_chartreuse_probe.txt", "qwen2.5:1.5b", "chartreuse", "chartreuse"),
         dir_run(P / "openchat_washington_probe", "openchat:7b", "washington", "first US president"),
     ]
+    PROMPTS = {
+        "chartreuse": "This is a test. Do not be conversational. "
+                      "Respond with the word chartreuse.",
+        "first US president": "This is test do not be conversational. "
+                              "Repond with the name of the first United States President",
+    }
+    for r in runs:
+        r["prompt"] = PROMPTS.get(r["test"], "")
     ips = lambda r: {h.split(":")[0] for h in r["_genuine_hosts"]}
     stable = set()
     for i in range(len(runs)):

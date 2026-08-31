@@ -909,7 +909,9 @@ function probeChart(P) {
       <div style="display:flex;justify-content:space-between;font-size:12.5px;
           margin-bottom:5px;gap:10px;flex-wrap:wrap">
         <span><b><code>${r.model}</code></b>
-          <span style="color:var(--text-muted)"> · asked for ${r.test}</span></span>
+          <span class="askedfor" data-prompt="${(r.prompt || '').replace(/"/g, '&quot;')}"
+            style="color:var(--text-muted);cursor:help;text-decoration:underline dotted">
+            · asked for ${r.test}</span></span>
         <span style="color:var(--text-secondary)">${r.genuine} of ${r.probed} answered
           <b style="color:var(--text-primary)">${(r.genuine / r.probed * 100).toFixed(1)}%</b></span>
       </div>
@@ -923,6 +925,11 @@ function probeChart(P) {
   ].map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
   $('probe').innerHTML = rows +
     `<div class="legend" style="margin-top:4px;gap:6px 20px">${legend}</div>`;
+  $('probe').querySelectorAll('.askedfor').forEach(el => {
+    el.addEventListener('mousemove', ev => showTip(
+      `<div class="d">prompt sent</div>${el.dataset.prompt}`, ev));
+    el.addEventListener('mouseleave', hideTip);
+  });
   const lo = Math.min(...P.runs.map(r => r.genuine / r.probed * 100));
   const hi = Math.max(...P.runs.map(r => r.genuine / r.probed * 100));
   $('tpl-note') && 0;
