@@ -15,10 +15,13 @@ SERVICES = {"ollama", "vllm", "llama.cpp", "lmstudio", "sglang"}
 MIN_HOSTS = 12
 
 sys.path.insert(0, str(ROOT / "pipeline"))
-from vendors import vendor as vendor_of
+from vendors import vendor as vendor_of, is_uncensored
+
+_IMAGE = re.compile(r'flux|stable-?diffusion|sdxl|sd3|dreamshaper|\.safetensors|\.ckpt|realvis|comfy', re.I)
 
 # parameter count from a model name: 135m -> 0.135, 7b -> 7, 480b, 1t -> 1000
 _SZ = re.compile(r'(?<![a-z0-9.])(\d+(?:\.\d+)?)\s*([bmt])(?![a-z])', re.I)
+_EFF = re.compile(r'(?<![a-z0-9.])[ae](\d+(?:\.\d+)?)\s*b(?![a-z])', re.I)  # e4b / a3b
 def params_b(name):
     best = None
     for m in _SZ.finditer(name):
@@ -26,7 +29,12 @@ def params_b(name):
         v = v / 1000 if u == 'm' else v * 1000 if u == 't' else v
         if v <= 2000:
             best = v if best is None else max(best, v)
-    return best
+    if best is not None:
+        return best
+    m = _EFF.search(name)
+    if m and float(m.group(1)) <= 2000:
+        return float(m.group(1))
+    return None
 
 
 # resolve a base:latest (or any untagged size) to a parameter count via the
@@ -45,6 +53,7 @@ def _load_lib():
                 _DIGEST_P.setdefault((base, v["digest"]), pb)
 
 def _from_library(base, tag):
+    base = base.lower()          # library names are lowercase
     entry = _LIB.get(base, {}).get(tag or "latest") or _LIB.get(base, {}).get("latest")
     if not entry:
         return None
@@ -56,15 +65,34 @@ def _from_library(base, tag):
     gb = entry["bytes"] / 1e9
     return round(gb / 0.6, 1) if gb else None
 
+# community fine-tunes keep the base model's size (huihui_ai/<x>-abliterated is
+# just an uncensored <x>), so strip the namespace and the fine-tune suffix.
+_FORK = re.compile(r'[-_](abliterated|uncensored|heretic|lorablated|amoral|'
+                   r'unfiltered|nsfw|unalign\w*|abliterate)\w*$', re.I)
+
+def _candidate_bases(base):
+    tail = base.rsplit("/", 1)[-1]
+    cands = [base, tail]
+    stripped = _FORK.sub("", tail)
+    if stripped != tail:
+        cands.append(stripped)
+    if tail.startswith("text-embedding-"):
+        cands.append(tail[len("text-embedding-"):])
+    alias = re.sub(r'[-_](backup|copy|bak)\d*$', '', tail, flags=re.I)
+    if alias != tail:
+        cands.append(alias)
+    return cands
+
 def resolve_params(name):
     pb = params_b(name)
     if pb is not None:
         return pb
     base, _, tag = name.partition(":")
-    p = _from_library(base, tag)
-    if p is None and "/" in base:        # namespaced (meta/muse-glimmer): try the tail
-        p = _from_library(base.rsplit("/", 1)[-1], tag)
-    return p
+    for b in _candidate_bases(base):
+        pb = params_b(b) or _from_library(b, tag)
+        if pb is not None:
+            return pb
+    return None
 
 def main():
     _load_lib()
@@ -83,12 +111,13 @@ def main():
 
     models = []
     for name, sizes in by.items():
-        if len(sizes) < MIN_HOSTS:
+        if len(sizes) < MIN_HOSTS or _IMAGE.search(name):
             continue
         base = name.split("/")[-1].split(":")[0]
         safe = re.sub(r'(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}', r'\1.\2.x.x', name)
         models.append([safe, len(sizes), round(statistics.mean(sizes), 1),
-                       vendor_of(name), resolve_params(name)])
+                       vendor_of(name), resolve_params(name),
+                       1 if is_uncensored(name) else 0])
     models.sort(key=lambda r: -r[2])
 
     out = {

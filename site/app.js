@@ -1291,14 +1291,16 @@ function hoardingChart(H, vendors) {
     style: 'fill:var(--text-muted)' }, 'hosts running the model  \u2192'));
   svg.append(grid, axis);
 
-  [...H.models].sort((a, b) => (b[4] || 0) - (a[4] || 0)).forEach(([name, hosts, avg, vend, pb]) => {
+  const UNC = '#f01e5a';   // uncensored / abliterated: a deliberate operator choice
+  [...H.models].sort((a, b) => (b[4] || 0) - (a[4] || 0)).forEach(([name, hosts, avg, vend, pb, unc]) => {
+    const grp = unc ? 'Uncensored' : vend;
     const c = el('circle', { cx: X(hosts), cy: Y(avg), r: R(pb),
-      fill: vc.colorFor(vend), 'fill-opacity': 0.55, stroke: 'var(--surface-1)', 'stroke-width': 1,
-      'data-vendor': vend });
+      fill: unc ? UNC : vc.colorFor(vend), 'fill-opacity': 0.55,
+      stroke: 'var(--surface-1)', 'stroke-width': 1, 'data-vendor': grp });
     c.addEventListener('mousemove', ev => showTip(
       `<b>${name}</b><br>${hosts.toLocaleString()} hosts · ${fmtP(pb)}<br>` +
       `their libraries average <b>${avg}</b> models<br>` +
-      `<span style="color:var(--text-muted)">${vend}</span>`, ev));
+      `<span style="color:var(--text-muted)">${unc ? 'uncensored · ' + vend : vend}</span>`, ev));
     c.addEventListener('mouseleave', hideTip);
     svg.append(c);
   });
@@ -1307,10 +1309,11 @@ function hoardingChart(H, vendors) {
   const dim = v => svg.querySelectorAll('circle').forEach(c =>
     c.setAttribute('fill-opacity',
       v === null || c.getAttribute('data-vendor') === v ? 0.55 : 0.05));
-  lg.replaceChildren(...vc.top.map(v => {
+  const items = [{ name: 'Uncensored', color: UNC }, ...vc.top.map(v => ({ name: v, color: vc.map[v] }))];
+  lg.replaceChildren(...items.map(it => {
     const sp = document.createElement('span');
-    sp.innerHTML = `<i style="background:${vc.map[v]}"></i>${v}`;
-    sp.addEventListener('mouseenter', () => dim(v));
+    sp.innerHTML = `<i style="background:${it.color}"></i>${it.name}`;
+    sp.addEventListener('mouseenter', () => dim(it.name));
     sp.addEventListener('mouseleave', () => dim(null));
     return sp;
   }));
