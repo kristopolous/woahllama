@@ -231,9 +231,9 @@
   scrapes Shodan and sweeps up hundreds of live hosts that respond to the Ollama API
   unlike a normal server. Each reports some subset of one small, fixed pool of old models, sizes constant
   to the byte, a handful of rotating version strings, and chat replies drawn from a small
-  phrase bank, and almost none of them can answer a simple question.</p>
+  phrase bank.</p>
   <p class="chapter-lede">In a fresh 4,407-host
-  snapshot they are about a third of everything answering as Ollama. The other two-thirds
+  snapshot they are about ⅓ of everything answering as Ollama. The other ⅔ 
   are ordinary real servers.</p>
   <p class="chapter-lede">What causes the third that isn't, we cannot say. It could be a
   coordinated deployment, a honeypot, or a badly broken configuration copied onto thousands
@@ -262,7 +262,7 @@
   answering the same narrow way.</p>
 
   <div class="card" style="margin-top:24px">
-    <h2 style="font-size:15px">A cleaner test: ask for the version</h2>
+    <h2 style="font-size:15px">Asking for the version</h2>
     <p class="note">The sharpest test does not come from the scanners. In a fresh snapshot
     of <b>4,407</b> hosts that answer as Ollama, <code>ollama version</code> splits the
     population in two. Real servers report one of <b>172 different versions</b> in a natural
@@ -340,7 +340,7 @@
   </div>
 
   <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">Servers wearing models they cannot run</h2>
+    <h2 style="font-size:15px">Mystery #2: Servers wearing models they cannot run</h2>
     <p class="note">Probing live hosts directly turned up a separate oddity. Hundreds of
     real, working Ollama boxes advertise a closed-weights model that cannot exist on
     Ollama: <code>gpt-4</code>, <code>gpt-4o</code>, <code>claude-3-opus</code>, and newer
@@ -402,7 +402,7 @@
 
 </section>
 <section>
-  <h2>What the scanners actually saw</h2>
+  <h2>Methodology: What the scanners actually saw</h2>
   <p class="note">The raw feed behind Chapter 1. Two scanners contribute: one FOFA-based,
   six countries only, and one accumulating list. A third, OllamaSpider, is excluded here.
   Only 15.6% of what it reports sits on Ollama's port against about 47% for the other two,
