@@ -423,7 +423,7 @@ function lifespanHist(life) {
   host.replaceChildren(svg);
   const yr = data[data.length - 1][1];
   $('lifespan-note').innerHTML =
-    `Median lifespan is <b>${life.clean.median.toFixed(1)} day</b>, but
+    `Median lifespan is <b>${life.clean.median.toFixed(1)} days</b>, but
      <b>${yr.toLocaleString()}</b> servers stayed reachable for over a year.`;
 }
 
@@ -790,7 +790,7 @@ function poolScatter(pools) {
   const big = pools.scatter.filter(r => r[0] >= 20).sort((a, b) => b[0] - a[0]);
   const peak = stats.reduce((a, b) => (b.med > a.med ? b : a));
   $('pools-note').innerHTML =
-    `Median lifespan climbs from <b>${stats[0].med} days</b> for a lone server to
+    `Median lifespan climbs from <b>${stats[0].med} day</b> for a lone server to
      <b>${peak.med} days</b> at ${peak.label} servers, then falls to
      <b>${stats[5].med} days</b> for the ${stats[5].n} blocks that ever ran 20 or more
      at once. The two largest (${big[0][0]} servers in ${big[0][2]}, ${big[1][0]} in
