@@ -1,0 +1,24 @@
+# Upstream scanners: their commit history IS the dataset. Cloned by setup.sh.
+/Awesome-Ollama-Server/
+/ollamalist/
+/OllamaSpider/
+
+# Private raw data — never published. The results are here; the host lists are not.
+/version/
+/probe/*.txt
+/probe/*_probe/
+/res*
+
+# Large and regenerable
+/survey.db
+/survey.db-shm
+/survey.db-wal
+*.csv.gz
+/pipeline/dbip-*.csv*
+
+# Python
+__pycache__/
+*.pyc
+
+# Scratch
+/scratchpad/

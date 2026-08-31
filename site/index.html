@@ -1,0 +1,335 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>woah…llama</title>
+<link rel="stylesheet" href="style.css">
+
+<div class="wrap">
+<header>
+  <h1>woah<span class="dim">…</span>llama</h1>
+  <p class="sub">Eighteen months of unsecured Ollama servers, reconstructed from the
+  commit history of three scanners that publish what they find. Every point below is
+  a git commit somebody's cron job made and forgot about.</p>
+  <div class="stats" id="stats"></div>
+</header>
+
+<div class="chapter">
+  <div class="chapter-num">Chapter 1</div>
+  <h2 class="chapter-title">What's actually out there</h2>
+  <p class="chapter-lede">The survey proper, built from the two feeds that verify their
+  hosts. Thousands of real people left a model server open to the internet. This is what
+  they are running, where, and for how long.</p>
+</div>
+<section>
+  <h2>Where the open servers are</h2>
+  <p class="note">Each country's share of model installs that come from Chinese labs
+  versus American ones. Orange leans Chinese, blue leans American, grey sits at even.
+  The menu switches to other slices: the share running an uncensored model, a 30B-plus
+  model, or four-bit weights. Each frame counts a five-month window. Countries with too
+  few servers to rate are hatched.</p>
+  <div class="card">
+    <div class="controls">
+      <div id="map-metric"></div>
+      <span class="spacer"></span>
+      <span class="note" id="map-lead" style="margin:0"></span>
+    </div>
+    <div class="map-wrap" id="map"></div>
+    <div class="ramp" id="map-ramp"></div>
+    <div class="player">
+      <button id="map-play">▶ Play</button>
+      <input type="range" id="map-frame" min="0" value="0">
+      <span class="date" id="map-date"></span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">The same thing as trend lines</h2>
+    <p class="note">The top countries as server counts over time.</p>
+    <div id="geo"></div>
+    <div class="legend" id="geo-legend"></div>
+  </div>
+</section>
+<section>
+  <h2>Who trained the models</h2>
+  <p class="note">Servers grouped by the lab that trained the base model, not the model
+  name, so Qwen stays one line as it moves from 2.5 to 3 to 3.6. A server counts once per
+  vendor it hosts, so shares sum past 100%.</p>
+  <div class="card">
+    <div class="controls">
+      <button id="ven-share" aria-pressed="true">Share of servers</button>
+      <button id="ven-abs" aria-pressed="false">Server count</button>
+      <span class="spacer"></span>
+      <label class="note" style="margin:0">smoothing
+        <select id="smooth-w">
+          <option value="1">none</option>
+          <option value="3" selected>3 days</option>
+          <option value="7">7 days</option>
+          <option value="15">15 days</option>
+        </select></label>
+    </div>
+    <div id="vendors"></div>
+    <div class="legend" id="vendors-legend"></div>
+  </div>
+</section>
+<section>
+  <h2>Individual models</h2>
+  <p class="note">Tags collapsed to the base name. Pick any model to add or drop it.</p>
+  <div class="card">
+    <div class="controls">
+      <select id="model-pick"></select>
+      <button id="model-reset">Reset to top 6</button>
+    </div>
+    <div id="models"></div>
+    <div class="legend" id="models-legend"></div>
+  </div>
+</section>
+<section>
+  <h2>How big, and how squeezed</h2>
+  <p class="note">Model sizes come from the tag when it states one, like
+  <code>gpt-oss:120b</code>. A <code>:latest</code> tag is resolved against ollama.com by
+  its manifest digest: <code>llama3.2:latest</code> shares a digest with
+  <code>llama3.2:3b-instruct-q4_K_M</code>, which names both the parameter count and the
+  quantisation. Shown as a share of installs whose size is known. Coverage is under the
+  chart.</p>
+  <div class="card">
+    <div class="controls">
+      <button id="sz-share" aria-pressed="true">Share of installs</button>
+      <button id="sz-abs" aria-pressed="false">Install count</button>
+    </div>
+    <div id="sizes"></div>
+    <div class="legend" id="sizes-legend"></div>
+    <p class="note" id="sizes-note" style="margin:8px 0 0"></p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">Quantisation</h2>
+    <p class="note">How hard the weights are compressed. <code>q4</code> is Ollama's
+    default for most models and dominates the chart. The deviations from it are the
+    interesting part.</p>
+    <div id="quants"></div>
+    <div class="legend" id="quants-legend"></div>
+    <p class="note" id="quants-note" style="margin:8px 0 0"></p>
+  </div>
+</section>
+<section>
+  <h2>How people run them</h2>
+  <p class="note">Servers grouped by the /24 they sit in, a rough stand-in for one
+  operator. Each column is a block size. The bar spans the middle half of lifespans, the
+  line is the median, the whisker reaches the 10th and 90th percentiles. Lifespan rises
+  with block size up to five servers, then falls.</p>
+  <div class="card">
+    <div id="pools"></div>
+    <p class="note" id="pools-note" style="margin:10px 0 0"></p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">When blocks arrive and leave</h2>
+    <p class="note">Each circle is a day a model's server count jumped further than its
+    own normal churn explains. Up is a block coming online, down is a block going offline.
+    Height is how many robust deviations (MAD) the jump was, circle area is how many
+    servers moved at once. Hover for the model and where the jump sits against its normal
+    daily range.</p>
+    <div id="blocks"></div>
+    <div class="legend" id="blocks-legend"></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">The stubborn ones</h2>
+    <p class="note">Longest-lived individual servers. <b>obs</b> counts sightings,
+    <b>runs</b> counts separate stretches of availability. A low run count against a high
+    observation count means it never went down.</p>
+    <div class="scroll"><table class="data" id="top-servers"></table></div>
+  </div>
+</section>
+<section>
+  <h2>Address space</h2>
+  <p class="note">Every server placed by the first two octets of its IPv4 address. X is
+  the first octet, Y the second, circle area the number of servers in that /16 that week.
+  Pick a lab and the fill shows each neighbourhood's share running its models. Whole
+  regions of the address space favour one lab.</p>
+  <div class="card">
+    <div class="controls">
+      <select id="oct-vendor"></select>
+      <span class="spacer"></span>
+      <span class="ramp" id="oct-ramp" style="margin:0"></span>
+    </div>
+    <canvas id="octets" height="620"></canvas>
+    <div class="player">
+      <button id="play">▶ Play</button>
+      <input type="range" id="frame" min="0" value="0">
+      <span class="date" id="frame-date"></span>
+    </div>
+  </div>
+</section>
+<div class="chapter">
+  <div class="chapter-num">Chapter 2</div>
+  <h2 class="chapter-title">Unexpected behavior</h2>
+  <p class="chapter-lede">A separate thread. One of the three scanners, OllamaSpider,
+  scrapes Shodan and sweeps up hundreds of live hosts that respond to the Ollama API
+  unlike a normal server. They report the same fixed model list everywhere, sizes constant
+  to the byte, a handful of rotating version strings, and chat replies drawn from a small
+  phrase bank, and almost none of them can answer a simple question. In a fresh 4,407-host
+  snapshot they are about a third of everything answering as Ollama. The other two-thirds
+  are ordinary real servers. What causes the third that isn't, we cannot say. It could be a
+  coordinated deployment, a honeypot, or a badly broken configuration copied onto thousands
+  of machines and forgotten. This chapter lays out what was observed and stops there.</p>
+</div>
+<section>
+  <h2>Hundreds of hosts answering as Ollama</h2>
+  <p class="note"><b>Scope first.</b> This is about one population inside one scanner.
+  OllamaSpider scrapes Shodan and grabs endpoints on ports that were never Ollama. The
+  other two feeds verify their hosts and do not carry this. Open Ollama servers are not
+  mostly fake, and there are thousands of real ones. This is a claim about a specific set
+  of hosts in a specific feed.</p>
+  <p class="note">These hosts are <b>live and responding</b>. Something on each one answers
+  the Ollama API with a model list, a version string, a chat reply. All of them advertise
+  the same six <b>old, unremarkable</b> models (<code>llama2</code>,
+  <code>qwen2.5:1.5b</code>, <code>codellama:13b</code>, <code>openchat:7b</code>,
+  <code>llama3</code>, <code>deepseek-r1</code>), frozen since early 2024, each at a size
+  constant to the byte across every host. Ask one a question and the reply reads like
+  filler from a small phrase bank rather than a model's answer. Ask its version and you get
+  one of four fixed strings. It is hundreds of hosts actively answering, and answering the
+  same narrow way.</p>
+
+  <div class="card" style="margin-top:24px">
+    <h2 style="font-size:15px">A cleaner test: ask for the version</h2>
+    <p class="note">The sharpest test does not come from the scanners. In a fresh snapshot
+    of <b>4,407</b> hosts that answer as Ollama, <code>ollama version</code> splits the
+    population in two. Real servers report one of <b>172 different versions</b> in a natural
+    long tail. The responders return one of just four fixed strings, which stand as a tight
+    near-equal band far above every real version. The four are in
+    <span style="color:var(--series-2)">orange</span>.</p>
+    <div id="survey"></div>
+    <p class="note" id="survey-note" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card" style="margin-top:24px">
+    <h2 style="font-size:15px">One model list, every host the same</h2>
+    <p class="note">The inventory these hosts report, byte-for-byte, every one the same. It
+    is also the most common single catalogue in the feed:</p>
+    <pre id="phantom-cat"></pre>
+    <p class="note" id="phantom-note"></p>
+    <p class="note">Each model's size is constant to the byte, where genuinely pulled
+    models vary by quantisation and version:</p>
+    <div class="scroll"><table class="data" id="phantom-sizes"></table></div>
+    <p class="note" style="margin-top:16px" id="inflation-note"></p>
+    <p class="note" style="margin-top:12px">Spread across ports that mostly are not
+    Ollama's. The same machine appears once per port:</p>
+    <div class="scroll"><table class="data" id="phantom-ports"></table></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">What happens when you actually talk to them</h2>
+    <p class="note">Everything else here comes from commit logs. This does not. The project
+    owner sent one instruction with a single correct answer to every OllamaSpider host
+    advertising a given model and read the replies. A real model answers. A fake one replies
+    with filler that quotes the prompt back. Three runs, two test questions, three models
+    from the fixed catalogue:</p>
+    <div id="probe"></div>
+    <p class="note" id="probe-note" style="margin:12px 0 0"></p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">It isn't even a language model</h2>
+    <p class="note">Line up all three probe captures and the replies give themselves away.
+    Every one is an opener, then the word <em>Regarding</em> with your prompt quoted back,
+    then a filler clause, then a closing question, each drawn from a tiny fixed pool. Seven
+    openers, eight middles, five closers make <b id="tpl-combos"></b> possible sentences,
+    assembled by <code>pre[rand] + your text + mid[rand] + post[rand]</code>. This is string
+    concatenation, not a model.</p>
+    <div id="template"></div>
+    <p class="note" id="tpl-note" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">Even the version number is on a wheel</h2>
+    <p class="note">A real Ollama host reports one version. These return four fixed strings
+    in near-equal proportion, from <code>0.1.0</code> to <code>0.6.3</code>. It is the same
+    rotate-a-fixed-list trick as the chat replies, applied to the version field.</p>
+    <div id="versions"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">Ports that belong to something else</h2>
+    <p class="note">Ollama listens on 11434. These hosts mostly do not. They answer on
+    ports assigned to databases, service meshes and Windows remote management. This is the
+    port mix of these responders, not of open Ollama servers in general.</p>
+    <div id="ports"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">Sizes that don't match the real blobs</h2>
+    <p class="note">ollama.com publishes the real blob size of every library tag, so a
+    reported size can be checked against an outside fact. These report a tag whose real
+    published size is nothing like the number they give for it.</p>
+    <div class="scroll"><table class="data" id="invented"></table></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">So what is it?</h2>
+    <p class="note">Unknown, and the data does not let us pretend otherwise. What is
+    established is narrow. Within OllamaSpider's feed, hundreds of live hosts answer the
+    Ollama API with a frozen set of old models, sizes that do not match the published blobs,
+    rotating version strings, and phrase-bank replies. The behaviour matches no published
+    honeypot, tarpit or mock-server project, checked against GitHub, the web, and the
+    honeypot literature. The closest, <code>funnypot</code>, echoes the model name rather
+    than the prompt and runs on a single host. The causes are all guesses and range widely.
+    A honeypot, though the bait is worthless. Real servers that refuse outside probes, and
+    we watched one genuine box do exactly that. A coordinated deployment. Or a badly
+    misconfigured setup copied onto thousands of machines and forgotten. We cannot choose
+    between them from here. Narrowing it would take infrastructure work: reverse DNS, ASN
+    and subnet clustering, and whether one operator's fingerprints recur.</p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">And the real ones, which are the actual story</h2>
+    <p class="note">Set the responders aside and there are thousands of real open servers,
+    with consistent per-model sizes, coherent catalogues, and terabytes of real weights on
+    an open port. These are the ones that matter, and Chapter 1 is about them. The
+    responders are mostly a reason to distrust any single scanner's raw count.</p>
+    <div class="scroll"><table class="data" id="hoarders"></table></div>
+  </div>
+</section>
+<section>
+  <h2>What the scanners actually saw</h2>
+  <p class="note">The raw feed behind Chapter 1. Two scanners contribute: one FOFA-based,
+  six countries only, and one accumulating list. A third, OllamaSpider, is excluded here.
+  Only 15.6% of what it reports sits on Ollama's port against about 47% for the other two,
+  it sprawls across 7,911 ports including CouchDB and Consul, and half its servers fall in
+  the responder blocks from Chapter 2. <b>Total</b> deduplicates a server seen by both.
+  Model tags ending <code>-cloud</code> are dropped throughout, since those proxy to
+  Ollama's hosted service and commit no weights, disk or GPU on the reporting machine. They
+  are 0.27% of installs but 15% of everything at 90B parameters and above.
+  <b>Collapse duplicates</b> also folds together groups of 50+ addresses reporting the same
+  model list on the same day.</p>
+  <div class="card">
+    <div class="controls">
+      <button id="pop-clean" aria-pressed="true">Collapse duplicates</button>
+      <button id="pop-all" aria-pressed="false">Raw feed</button>
+      <span class="spacer"></span>
+      <span class="note" style="margin:0">hover for values</span>
+    </div>
+    <div id="pop"></div>
+  </div>
+</section>
+
+<footer>
+  <p>Reconstructed from the commit histories of
+  <a href="https://github.com/forrany/Awesome-Ollama-Server">Awesome-Ollama-Server</a> and
+  <a href="https://github.com/hcshi/ollamalist">ollamalist</a>, two scanners whose GitHub
+  Actions have committed what they find every hour or ten since February 2025. 8,879
+  commits, 2.7&nbsp;GB of snapshots, run-length encoded into SQLite. Only ~0.5% of servers
+  change between consecutive snapshots, so 76.9&nbsp;M observations compress to 468&nbsp;k
+  intervals with nothing thrown away. A third scanner,
+  <a href="https://github.com/wangyuxinwhy/OllamaSpider">OllamaSpider</a>, scans
+  indiscriminately and is kept out of the trend charts, where its lockstep blocks would
+  swamp everything. It is the basis of Chapter 2, because scanning indiscriminately is what
+  makes the responders visible.</p>
+  <p>IP geolocation by <a href="https://db-ip.com">DB-IP</a>
+  (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>). Lab attribution
+  is by base-model lineage, so a community re-upload counts for the lab that trained the
+  model it came from.</p>
+  <p>The Chapter 1 survey comes entirely from public commit logs, and nothing was queried
+  to build it. The live probes in Chapter 2 are labelled where they appear.</p>
+</footer>
+</div>
+
+<div class="tip" id="tip"></div>
+<script src="charts.js"></script>
+<script src="app.js"></script>
