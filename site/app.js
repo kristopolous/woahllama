@@ -32,8 +32,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'cities'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, cities]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey]) => {
     window.__models = models; window.__geo = geo;
     stats(counts, life, pools, mapd);
     population(counts);
@@ -41,7 +41,6 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     modelChart(models);
     geoChart(geo);
     worldMap(world, mapd);
-    cityMap(world, cities);
     bubbles(octets);
     versionSurvey(survey);
     strangeSection(strange);
@@ -66,7 +65,6 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     poolScatter(pools); composition(pools);
       drawFrame(octets, +$('frame').value);
       worldMap(world, mapd);
-      cityMap(world, cities);
     }, 180));
   })
   .catch(err => {
@@ -291,7 +289,13 @@ function drawFrame(oct, f) {
     const r = 2 + Math.sqrt(n / maxv) * 17;
     let alpha;
     if (vi < 0) {
-      g.fillStyle = css.getPropertyValue('--series-1'); alpha = 0.5;
+      let best = -1, bestN = 0;
+      for (let k = 0; k < oct.vendors.length; k++) {
+        const vn = frame[i + 2 + k];
+        if (vn > bestN) { bestN = vn; best = k; }
+      }
+      g.fillStyle = css.getPropertyValue(best >= 0 ? `--series-${best + 1}` : '--series-1');
+      alpha = 0.55;
     } else {
       // colour by the selected lab; how solid = its share of that /16
       const share = n ? frame[i + 2 + vi] / n : 0;
@@ -305,8 +309,7 @@ function drawFrame(oct, f) {
   }
   $('frame-date').textContent =
     new Date((oct.day0 + f * 7 * 86400) * 1000).toISOString().slice(0, 10);
-  $('oct-ramp').textContent = vi < 0
-    ? '' : `bolder = more of that /16 runs ${oct.vendors[vi]}`;
+  $('oct-ramp').textContent = '';
 }
 
 function bubbles(oct) {
@@ -435,8 +438,6 @@ function worldMap(world, M) {
       <line x1="0" y1="0" x2="0" y2="6" stroke="var(--coast)" stroke-width="2"/>
     </pattern></defs>`;
 
-  // each slice names its own numerator and denominator: "30B and larger" is a
-  // share of installs whose size is known, not of every install
   const SLICES = {
     lean: { label: 'Chinese vs American labs' },
     unc:  { label: 'Uncensored models', num: 'unc', den: 'inst' },
@@ -444,10 +445,9 @@ function worldMap(world, M) {
     lowq: { label: '4-bit or coarser weights', num: 'lowq', den: 'qknown' },
   };
   const slice = k => SLICES[k] || { num: null, den: 'inst' };
-  const pick = (c, key, m) => win(
-    key.startsWith('v:') ? c.v[key.slice(2)] : c[slice(key).num], m);
-  const base_of = (c, key, m) => win(
-    key.startsWith('v:') ? c.inst : c[slice(key).den], m);
+  const pick = (c, key, m) => win(key.startsWith('v:') ? c.v[key.slice(2)] : c[slice(key).num], m);
+  const base_of = (c, key, m) => win(key.startsWith('v:') ? c.inst : c[slice(key).den], m);
+
   const host_pills = $('map-metric');
   const items = [...Object.entries(SLICES).map(([k, v]) => [k, v.label]),
                  ...M.vendors.map(v => ['v:' + v, v])];
@@ -461,16 +461,14 @@ function worldMap(world, M) {
   const syncPills = () => host_pills.querySelectorAll('.pill').forEach(b =>
     b.setAttribute('aria-pressed', b.dataset.key === sel.value));
 
-  /* sum a series over the window around month m */
   const win = (arr, m) => {
     let s = 0;
     for (let k = Math.max(0, m - WINDOW); k <= Math.min(M.months.length - 1, m + WINDOW); k++) s += arr[k];
     return s;
   };
 
-  /* -> {d, label, detail} where d is -1..1 around the metric's midpoint */
-  const metric = (cc, m) => {
-    const c = M.countries[cc];
+  // metric on a record (country or city — identical shape)
+  const metric = (c, m) => {
     if (!c) return null;
     const srv = win(c.srv, m);
     if (!srv) return null;
@@ -489,7 +487,6 @@ function worldMap(world, M) {
     const num = pick(c, key, m);
     const rate = num / inst, base = window.__mapBase;
     if (!base) return null;
-    // log ratio, squashed to -1..1 so the diverging breaks are symmetric
     const d = Math.max(-1, Math.min(1, Math.log2(rate / base) / 2));
     return { d, srv, rate, base, installs: inst,
       label: `${(rate * 100).toFixed(1)}% of installs (world ${(base * 100).toFixed(1)}%)`,
@@ -501,13 +498,21 @@ function worldMap(world, M) {
     if (key === 'lean') return null;
     let num = 0, den = 0;
     for (const cc in M.countries) {
-      const c = M.countries[cc];
-      den += base_of(c, key, m);
-      num += pick(c, key, m);
+      den += base_of(M.countries[cc], key, m);
+      num += pick(M.countries[cc], key, m);
     }
     return den ? num / den : null;
   };
 
+  const css = getComputedStyle(document.body);
+  const BLUE = css.getPropertyValue('--map-blue') || '#2f7fd6';
+  const PINK = css.getPropertyValue('--map-pink') || '#d63f95';
+  const ramp = t => blendOklab(BLUE, PINK, Math.max(0, Math.min(1, t)));
+  const toRamp = r => ramp(0.5 + 0.5 * Math.tanh(r.d * 2.2));
+  const toOp = r => 0.08 + 0.82 * Math.min(1, (r.installs || 0) / 300);
+
+  // country layer
+  const gCountries = document.createElementNS(NS, 'g');
   const paths = {};
   for (const f of world) {
     const d = f.g.map(r => r.map((p, i) =>
@@ -515,68 +520,129 @@ function worldMap(world, M) {
     const p = document.createElementNS(NS, 'path');
     p.setAttribute('d', d);
     p.setAttribute('fill', 'url(#nodata)');
+    p.setAttribute('vector-effect', 'non-scaling-stroke');
     (paths[f.cc] = paths[f.cc] || []).push(p);
     p.addEventListener('mousemove', ev => {
       const m = +$('map-frame').value;
       window.__mapBase = worldBase(m);
-      const r = metric(f.cc, m);
+      const r = metric(M.countries[f.cc], m);
       const body = !r ? 'no servers seen'
         : `<b>${r.label}</b><br>${r.detail}`
           + (r.installs < 30 ? '<br><span style="color:var(--text-muted)">small sample</span>' : '');
       showTip(`<div class="d">${f.n} · ${M.months[m]}</div>${body}`, ev);
     });
     p.addEventListener('mouseleave', hideTip);
-    svg.append(p);
+    gCountries.append(p);
   }
-  host.replaceChildren(svg);
 
-  const css = getComputedStyle(document.body);
-  const BLUE = css.getPropertyValue('--map-blue') || '#2f7fd6';
-  const PINK = css.getPropertyValue('--map-pink') || '#d63f95';
-  const ramp = t => blendOklab(BLUE, PINK, Math.max(0, Math.min(1, t)));
+  // plain-land backdrop for city mode
+  const gLand = document.createElementNS(NS, 'g');
+  gLand.setAttribute('display', 'none');
+  for (const f of world) {
+    const d = f.g.map(r => r.map((p, i) =>
+      (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('') + 'Z').join('');
+    gLand.append(el('path', { d, fill: 'var(--land)', stroke: 'var(--coast)',
+      'stroke-width': 0.5, 'vector-effect': 'non-scaling-stroke' }));
+  }
+
+  // city layer
+  const maxWin = (() => {
+    let mx = 1;
+    for (const c of M.cities) for (let m = 0; m < M.months.length; m++) mx = Math.max(mx, win(c.srv, m));
+    return mx;
+  })();
+  const gCities = document.createElementNS(NS, 'g');
+  gCities.setAttribute('display', 'none');
+  const cityMarks = M.cities.map(c => {
+    const circ = el('circle', { cx: X(c.lon), cy: Y(c.lat), r: 0,
+      fill: 'var(--text-muted)', 'fill-opacity': 0.62, stroke: 'var(--surface-1)',
+      'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' });
+    circ.addEventListener('mousemove', ev => {
+      const m = +$('map-frame').value;
+      window.__mapBase = worldBase(m);
+      const r = metric(c, m), n = win(c.srv, m);
+      const body = !r ? `${n} server${n === 1 ? '' : 's'}`
+        : `<b>${r.label}</b><br>${r.detail}`;
+      showTip(`<div class="d">${c.city}, ${c.cc} · ${M.months[m]}</div>${body}`, ev);
+    });
+    circ.addEventListener('mouseleave', hideTip);
+    gCities.append(circ);
+    return { c, circ };
+  });
+
+  svg.append(gLand, gCountries, gCities);
+  host.replaceChildren(svg);
+  addZoom(host, svg, W, H);
+
+  let mode = host.dataset.mode || 'country';
 
   const paint = m => {
-    const lean = (sel.value || 'lean') === 'lean';
     window.__mapBase = worldBase(m);
+    const lean = (sel.value || 'lean') === 'lean';
     const scored = [];
-    for (const cc in paths) {
-      const r = metric(cc, m);
-      let fill = 'url(#nodata)', op = 1;
-      if (r) {
-        fill = ramp(0.5 + 0.5 * Math.tanh(r.d * 2.2)); // spread the clustered mid-range
-        // fade in with sample size so a country doesn't blink on and off as it
-        // crosses a threshold; full strength by ~300 installs
-        op = 0.08 + 0.82 * Math.min(1, (r.installs || 0) / 300);
-        scored.push([cc, r]);
+    if (mode === 'country') {
+      for (const cc in paths) {
+        const r = metric(M.countries[cc], m);
+        let fill = 'url(#nodata)', op = 1;
+        if (r) { fill = toRamp(r); op = toOp(r); scored.push([cc, r]); }
+        for (const el of paths[cc]) { el.setAttribute('fill', fill); el.setAttribute('fill-opacity', op); }
       }
-      for (const el of paths[cc]) { el.setAttribute('fill', fill);
-        el.setAttribute('fill-opacity', op); }
+    } else {
+      for (const { c, circ } of cityMarks) {
+        const n = win(c.srv, m);
+        const r = n ? metric(c, m) : null;
+        circ.setAttribute('r', n ? 2 + Math.sqrt(n / maxWin) * 22 : 0);
+        if (r) {
+          circ.setAttribute('fill', toRamp(r));
+          circ.setAttribute('fill-opacity', 0.35 + 0.4 * toOp(r));
+          scored.push([c.city, r]);
+        } else {
+          circ.setAttribute('fill', 'var(--text-muted)');
+          circ.setAttribute('fill-opacity', 0.3);
+        }
+      }
     }
     $('map-date').textContent = M.months[m];
     const loLab = lean ? 'American' : 'below world', hiLab = lean ? 'Chinese' : 'above world';
-    $('map-ramp').innerHTML = (lean
-      ? 'installs lean '
+    $('map-ramp').innerHTML = (lean ? 'installs lean '
       : `vs the world rate (${(window.__mapBase * 100).toFixed(1)}%) `)
       + `<span class="b">${loLab}</span>`
       + `<i style="width:140px;height:12px;border-radius:3px;opacity:0.9;`
       + `background:linear-gradient(90deg,${ramp(0)},${ramp(0.5)},${ramp(1)})"></i>`
-      + `<span class="b">${hiLab}</span>`
-      + `<span class="b" style="margin-left:14px"><i style="background:var(--land);`
-      + `background-image:repeating-linear-gradient(45deg,var(--coast) 0 2px,transparent 2px 6px)"></i>no data</span>`;
-
-    // rank only where the sample can carry it: 8 servers all running one lab's
-    // models is a +100 that means nothing
+      + `<span class="b">${hiLab}</span>`;
     const rank = scored.filter(([, r]) => r.installs >= LEAD_INSTALLS)
                        .sort((a, b) => b[1].d - a[1].d);
-    const fmt = ([cc, r]) => `<b>${cc}</b> ${lean
+    const fmt = ([nm, r]) => `<b>${nm}</b> ${lean
       ? (r.d > 0 ? '+' : '') + (r.d * 100).toFixed(0)
       : (r.rate / r.base).toFixed(1) + '×'}`;
     $('map-lead').innerHTML = rank.length
       ? (lean ? 'most Chinese: ' : 'highest: ') + rank.slice(0, 3).map(fmt).join(' · ')
-        + (lean ? ' &nbsp;·&nbsp; most American: '
-                  + rank.slice(-3).reverse().map(fmt).join(' · ') : '')
+        + (lean ? ' &nbsp;·&nbsp; most American: ' + rank.slice(-3).reverse().map(fmt).join(' · ') : '')
       : '';
   };
+
+  // mode toggle
+  const modeHost = $('map-mode');
+  if (!modeHost.dataset.built) {
+    modeHost.className = 'pills';
+    modeHost.innerHTML = '<button class="pill" data-mode="country" aria-pressed="true">By country</button>'
+      + '<button class="pill" data-mode="city">By city</button>';
+    modeHost.dataset.built = '1';
+  }
+  const applyMode = () => {
+    gCountries.setAttribute('display', mode === 'country' ? 'block' : 'none');
+    gLand.setAttribute('display', mode === 'city' ? 'block' : 'none');
+    gCities.setAttribute('display', mode === 'city' ? 'block' : 'none');
+    modeHost.querySelectorAll('.pill').forEach(b =>
+      b.setAttribute('aria-pressed', b.dataset.mode === mode));
+  };
+  modeHost.onclick = e => {
+    const b = e.target.closest('.pill');
+    if (!b) return;
+    mode = host.dataset.mode = b.dataset.mode;
+    applyMode(); paint(+$('map-frame').value);
+  };
+  applyMode();
 
   const slider = $('map-frame');
   slider.max = M.months.length - 1;
@@ -588,8 +654,7 @@ function worldMap(world, M) {
     const b = e.target.closest('.pill');
     if (!b) return;
     sel.value = host_pills.dataset.value = b.dataset.key;
-    syncPills();
-    paint(+slider.value);
+    syncPills(); paint(+slider.value);
   };
   syncPills();
   $('map-play').onclick = () => {
@@ -1085,47 +1150,6 @@ function blockTip(e, day0) {
 }
 
 
-/* ---------------------------------------------------------- city dot map */
-function cityMap(world, data) {
-  const host = $('citymap');
-  const W = host.clientWidth || 1100, H = Math.round(W * 0.46);
-  const LAT0 = 84, LAT1 = -58;
-  const X = lon => (lon + 180) / 360 * W;
-  const Y = lat => (LAT0 - lat) / (LAT0 - LAT1) * H;
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
-
-  // faint land underneath
-  for (const f of world) {
-    const d = f.g.map(r => r.map((p, i) =>
-      (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('') + 'Z').join('');
-    svg.append(el('path', { d, fill: 'var(--land)', stroke: 'var(--coast)',
-      'stroke-width': 0.5, 'vector-effect': 'non-scaling-stroke' }));
-  }
-
-  const css = getComputedStyle(document.body);
-  const BLUE = css.getPropertyValue('--map-blue') || '#2f7fd6';
-  const PINK = css.getPropertyValue('--map-pink') || '#d63f95';
-  const ramp = t => blendOklab(BLUE, PINK, Math.max(0, Math.min(1, t)));
-  const maxN = Math.max(...data.cities.map(c => c[2]));
-
-  // biggest first so small dots draw on top and stay hoverable
-  const cities = [...data.cities].sort((a, b) => b[2] - a[2]);
-  for (const [lat, lon, n, cc, city, lean] of cities) {
-    const r = 2 + Math.sqrt(n / maxN) * 22;
-    const fill = lean == null ? 'var(--text-muted)' : ramp(0.5 + 0.5 * Math.tanh(lean * 2.2));
-    const c = el('circle', { cx: X(lon), cy: Y(lat), r, fill, 'fill-opacity': 0.62,
-      stroke: 'var(--surface-1)', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' });
-    c.addEventListener('mousemove', ev => showTip(
-      `<div class="d">${city}, ${cc}</div><b>${n.toLocaleString()}</b> servers` +
-      (lean == null ? '' : `<br>${lean > 0 ? (lean * 100).toFixed(0) + '% toward Chinese labs'
-        : (-lean * 100).toFixed(0) + '% toward American labs'}`), ev));
-    c.addEventListener('mouseleave', hideTip);
-    svg.append(c);
-  }
-  host.replaceChildren(svg);
-  addZoom(host, svg, W, H);
-}
 
 /* viewBox pan/zoom with +/- buttons, drag, and wheel */
 function addZoom(host, svg, W, H) {

@@ -41,6 +41,7 @@
   few servers to rate are hatched.</p>
   <div class="card">
     <div class="controls">
+      <div id="map-mode"></div>
       <div id="map-metric"></div>
       <span class="spacer"></span>
       <span class="note" id="map-lead" style="margin:0"></span>
@@ -52,13 +53,6 @@
       <input type="range" id="map-frame" min="0" value="0">
       <span class="date" id="map-date"></span>
     </div>
-  </div>
-  <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">Every city with five or more</h2>
-    <p class="note">Each dot is a city, sized by how many servers sit there and coloured
-    by the same Chinese-versus-American lean. The largest dots are cloud regions, not
-    populations.</p>
-    <div class="map-wrap" id="citymap"></div>
   </div>
   <div class="card" style="margin-top:16px">
     <h2 style="font-size:15px">The same thing as trend lines</h2>
@@ -159,8 +153,7 @@
 </section>
 <section>
   <h2>Address space</h2>
-  <p class="note">Every server placed by the first two octets of its IPv4 address. X is
-  the first octet, Y the second, circle area the number of servers in that /16 that week.
+  <p class="note">Every server placed by the first two octets of its IPv4 address. The X-Axis is the first octet, the Y-Axis the second, circle area the number of servers in that /16 that week.
   Pick a lab and the fill shows each neighbourhood's share running its models. Whole
   regions of the address space favour one lab.</p>
   <div class="card">

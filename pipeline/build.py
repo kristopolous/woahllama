@@ -169,7 +169,20 @@ def main():
                          key=lambda v: max(ser["vendor_clean"][v]), reverse=True)[:8]
     tv = set(top_vendors)
 
+    # city geolocation for the by-city view (aggregated to 0.1 degrees)
+    cgeo = {}
+    for sid, city, cc2, lat, lon in con.execute(
+            "SELECT server_id,city,country,lat,lon FROM server_geo"
+            " WHERE lat IS NOT NULL AND lat <> 0"):
+        cgeo[sid] = ((round(lat, 1), round(lon, 1)), city, cc2)
+
     srv = collections.defaultdict(set)                    # (cc,m) -> servers
+    csrv = collections.defaultdict(set)                   # (citykey,m) -> servers
+    cinst = collections.Counter(); cunc = collections.Counter()
+    cbig = collections.Counter(); csized = collections.Counter()
+    clowq = collections.Counter(); cqknown = collections.Counter()
+    corg = collections.Counter(); cven = collections.Counter()
+    cnames = {}
     inst = collections.Counter()                          # (cc,m) -> installs
     big = collections.Counter()                           # installs >= 30B
     sized = collections.Counter()                         # installs with a known size
@@ -182,16 +195,21 @@ def main():
             f"SELECT DISTINCT server_id,(start_ts-?)/?,(end_ts-?)/? FROM presence"
             f" WHERE source_id IN {keep}", (d0, DAY, d0, DAY)):
         cc = geo.get(svid)
-        if cc:
-            for d in days(a, b):
-                srv[(cc, day_month[d])].add(svid)
+        cg = cgeo.get(svid)
+        for d in days(a, b):
+            m = day_month[d]
+            if cc:
+                srv[(cc, m)].add(svid)
+            if cg:
+                csrv[(cg[0], m)].add(svid); cnames[cg[0]] = (cg[1], cg[2])
     # one install counted once per country-month, however many days it spans
     seen_inst = set()
     for svid, mid, a, b in con.execute(
             f"SELECT server_id,model_id,(start_ts-?)/?,(end_ts-?)/? FROM server_model"
             f" WHERE source_id IN {keep}", (d0, DAY, d0, DAY)):
         cc = geo.get(svid)
-        if not cc:
+        cg = cgeo.get(svid)
+        if not cc and not cg:
             continue
         if mid in cloud:
             continue
@@ -204,18 +222,27 @@ def main():
             seen_inst.add(k)
             inst[(cc, m)] += 1
             org[(cc, m, og)] += 1
+            ck = cg[0] if cg else None
+            if ck is not None:
+                cinst[(ck, m)] += 1; corg[(ck, m, og)] += 1
             if mid in sized_ids:
                 sized[(cc, m)] += 1
+                if ck is not None: csized[(ck, m)] += 1
                 if mid in big_ids:
                     big[(cc, m)] += 1
+                    if ck is not None: cbig[(ck, m)] += 1
             if mid in quantknown_ids:
                 qknown[(cc, m)] += 1
+                if ck is not None: cqknown[(ck, m)] += 1
                 if mid in lowq_ids:
                     lowq[(cc, m)] += 1
+                    if ck is not None: clowq[(ck, m)] += 1
             if hot:
                 unc[(cc, m)] += 1
+                if ck is not None: cunc[(ck, m)] += 1
             if vd in tv:
                 ven[(cc, m, vd)] += 1
+                if ck is not None: cven[(ck, m, vd)] += 1
     del seen_inst
 
     countries = {}
@@ -232,43 +259,30 @@ def main():
                   for o in ("US", "CN", "EU")},
             "v": {v: [ven[(cc, i, v)] for i in range(NM)] for v in top_vendors},
         }
-    write(OUT/"map.json", {"months": months, "min_n": MIN_N,
-                           "vendors": top_vendors, "countries": countries})
-
-    # ---- 4d. city dot map (aggregate, >=5 servers, current-snapshot lean) --
     MIN_CITY = 5
-    cgeo = {}
-    for sid, city, cc, lat, lon in con.execute(
-            "SELECT server_id,city,country,lat,lon FROM server_geo"
-            " WHERE lat IS NOT NULL AND lat <> 0"):
-        cgeo[sid] = (round(lat, 1), round(lon, 1), city, cc)
-    cserv = collections.defaultdict(set)
-    cname = {}
-    for svid, in con.execute(
-            f"SELECT DISTINCT server_id FROM presence WHERE source_id IN {keep}"):
-        g = cgeo.get(svid)
-        if g:
-            key = (g[0], g[1]); cserv[key].add(svid); cname[key] = (g[2], g[3])
-    cus = collections.Counter(); ccn = collections.Counter()
-    for svid, mid in con.execute(
-            f"SELECT DISTINCT server_id, model_id FROM server_model"
-            f" WHERE source_id IN {keep}"):
-        g = cgeo.get(svid)
-        if not g:
-            continue
-        key = (g[0], g[1]); og = orig_of.get(mid)
-        if og == "US": cus[key] += 1
-        elif og == "CN": ccn[key] += 1
     cities = []
-    for key, svs in cserv.items():
-        if len(svs) < MIN_CITY:
+    for ck in {k[0] for k in csrv}:
+        n = [len(csrv.get((ck, i), ())) for i in range(NM)]
+        if max(n) < MIN_CITY:
             continue
-        us, cn = cus[key], ccn[key]
-        lean = round((cn - us) / (cn + us), 3) if (us + cn) >= 10 else None
-        city, cc = cname[key]
-        cities.append([key[0], key[1], len(svs), cc, city, lean])
-    cities.sort(key=lambda r: -r[2])
-    write(OUT/"cities.json", {"min_city": MIN_CITY, "cities": cities})
+        city, cc2 = cnames[ck]
+        cities.append({
+            "lat": ck[0], "lon": ck[1], "city": city, "cc": cc2,
+            "srv": n,
+            "inst": [cinst[(ck, i)] for i in range(NM)],
+            "unc": [cunc[(ck, i)] for i in range(NM)],
+            "big": [cbig[(ck, i)] for i in range(NM)],
+            "sized": [csized[(ck, i)] for i in range(NM)],
+            "lowq": [clowq[(ck, i)] for i in range(NM)],
+            "qknown": [cqknown[(ck, i)] for i in range(NM)],
+            "o": {o: [corg[(ck, i, o)] for i in range(NM)] for o in ("US", "CN", "EU")},
+            "v": {v: [cven[(ck, i, v)] for i in range(NM)] for v in top_vendors},
+        })
+    cities.sort(key=lambda c: -max(c["srv"]))
+    write(OUT/"map.json", {"months": months, "min_n": MIN_N, "min_city": MIN_CITY,
+                           "vendors": top_vendors, "countries": countries,
+                           "cities": cities})
+
 
     # ---- 4c. model size and quantisation over time ------------------------
     # Counted in installs, and only over the models whose size or quantisation
