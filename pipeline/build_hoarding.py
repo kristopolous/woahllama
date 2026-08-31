@@ -44,17 +44,27 @@ def _load_lib():
             if pb is not None:
                 _DIGEST_P.setdefault((base, v["digest"]), pb)
 
+def _from_library(base, tag):
+    entry = _LIB.get(base, {}).get(tag or "latest") or _LIB.get(base, {}).get("latest")
+    if not entry:
+        return None
+    # a sibling tag that names a size and shares this digest
+    p = _DIGEST_P.get((base, entry["digest"]))
+    if p is not None:
+        return p
+    # otherwise estimate from the download size (q4-ish ~0.6 GB per billion params)
+    gb = entry["bytes"] / 1e9
+    return round(gb / 0.6, 1) if gb else None
+
 def resolve_params(name):
     pb = params_b(name)
     if pb is not None:
         return pb
-    if "/" in name:                      # namespaced / hf.co uploads: not in the library
-        return None
     base, _, tag = name.partition(":")
-    entry = _LIB.get(base, {}).get(tag or "latest") or _LIB.get(base, {}).get("latest")
-    if entry:
-        return _DIGEST_P.get((base, entry["digest"]))
-    return None
+    p = _from_library(base, tag)
+    if p is None and "/" in base:        # namespaced (meta/muse-glimmer): try the tail
+        p = _from_library(base.rsplit("/", 1)[-1], tag)
+    return p
 
 def main():
     _load_lib()
