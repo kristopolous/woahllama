@@ -13,6 +13,8 @@ const SOURCE_LABEL = {
   'awesome-ollama-server': 'Awesome-Ollama-Server (FOFA)',
   'ollamalist': 'ollamalist (accumulated)',
   'ollamaspider': 'OllamaSpider (Shodan)',
+  'fofa-survey': 'FOFA survey (point-in-time)',
+  'shodan-survey': 'Shodan survey (point-in-time)',
 };
 
 const load = n => fetch(`data/${n}.json`).then(r => {
@@ -32,8 +34,9 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize]) => {
+    window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
     population(counts);
@@ -52,6 +55,9 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     poolScatter(pools);
     blocksChart(models, vendors);
     lifespanHist(life);
+    retentionCurve(popmodel);
+    populationModel(popmodel);
+    fakeSizeChart(fakeSize);
     hoardingChart(hoarding, vendors);
     addEventListener('resize', debounce(() => {
       population(counts); vendorChart(vendors, counts);
@@ -64,6 +70,8 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     sizeChart(sizes);
     quantChart(sizes);
     poolScatter(pools); blocksChart(models, vendors); lifespanHist(life);
+      retentionCurve(window.__popmodel); populationModel(window.__popmodel);
+      fakeSizeChart(window.__fakesize);
       hoardingChart(hoarding, vendors);
       drawFrame(octets, +$('frame').value);
       worldMap(world, mapd);
@@ -161,7 +169,7 @@ function population(counts) {
   const render = clean => {
     const src = clean ? counts.sources_clean : counts.sources;
     const series = Object.keys(src).map((k, i) => ({
-      name: SOURCE_LABEL[k] || k, color: [PAL(2), PAL(3), PAL(7)][i], values: src[k],
+      name: SOURCE_LABEL[k] || k, color: [PAL(2), PAL(3), PAL(7), PAL(4), PAL(5)][i] || PAL(6), values: src[k],
     }));
     series.push({
       name: 'Total (deduplicated)', color: PAL(1),
@@ -185,14 +193,21 @@ function vendorChart(vendors, counts) {
   const totals = {};
   for (const k in vendors.clean) totals[k] = Math.max(...vendors.clean[k]);
   const top = Object.keys(totals).sort((a, b) => totals[b] - totals[a]).slice(0, 8);
+  // cohort denominator: total lab attributions that day, so share reads as
+  // "of the models we can trace to a lab, whose" and the shrinking overall
+  // coverage cancels instead of dragging every line down together
+  const allV = Object.keys(vendors.clean);
+  const ndays = vendors.clean[top[0]].length;
+  const cohort = Array.from({ length: ndays }, (_, d) =>
+    allV.reduce((s, k) => s + vendors.clean[k][d], 0));
   const render = share => {
     const series = top.map((k, i) => ({
       name: k, color: SERIES_COLORS[i],
       values: smooth(vendors.clean[k].map((v, d) =>
-        share ? (counts.clean[d] ? v / counts.clean[d] * 100 : 0) : v)),
+        share ? (cohort[d] ? v / cohort[d] * 100 : 0) : v)),
     }));
     timeChart($('vendors'), {
-      ...vendors, series, height: 340, percent: share,
+      ...vendors, series, height: 340,   // no percent cap: scale to the data, not to 100
       yFormat: share ? v => v + '%' : undefined,
       valueFormat: share ? v => v.toFixed(1) + '%' : undefined,
     });
@@ -227,8 +242,13 @@ function modelChart(models, keep) {
     };
     $('model-reset').onclick = () => { modelPick = null; modelChart(models); };
   }
-  const tot = (window.__counts && window.__counts.clean) || null;
-  const share = arr => smooth(arr.map((v, d) => tot && tot[d] ? v / tot[d] * 100 : 0));
+  // cohort denominator: total instances of the tracked models that day, so each
+  // line is share-of-the-model-mix and the coverage collapse cancels out
+  const allM = Object.keys(models.clean);
+  const nd = models.clean[allM[0]].length;
+  const cohort = Array.from({ length: nd }, (_, d) =>
+    allM.reduce((s, k) => s + models.clean[k][d], 0));
+  const share = arr => smooth(arr.map((v, d) => cohort[d] ? v / cohort[d] * 100 : 0));
   const series = modelPick.map((n, i) => ({
     name: n, color: SERIES_COLORS[i % 8], values: share(models.clean[n]),
   }));
@@ -285,11 +305,17 @@ function drawFrame(oct, f) {
   g.strokeStyle = css.getPropertyValue('--grid'); g.lineWidth = 1;
   g.fillStyle = css.getPropertyValue('--text-muted');
   g.font = '11px ui-monospace, Menlo, monospace';
-  for (let t = 0; t <= 256; t += 32) {
-    const x = M.l + t / 256 * iw, y = M.t + ih - t / 256 * ih;
+  // First octet (X) tops out at 224: 224-255 is multicast/reserved, never a host.
+  // Second octet (Y) uses the full 0-255 range.
+  const XMAX = 224, YMAX = 256;
+  for (let t = 0; t <= XMAX; t += 32) {           // vertical grid + X labels
+    const x = M.l + t / XMAX * iw;
     g.beginPath(); g.moveTo(x, M.t); g.lineTo(x, M.t + ih); g.stroke();
-    g.beginPath(); g.moveTo(M.l, y); g.lineTo(M.l + iw, y); g.stroke();
     g.textAlign = 'center'; g.fillText(t, x, h - 16);
+  }
+  for (let t = 0; t <= YMAX; t += 32) {           // horizontal grid + Y labels
+    const y = M.t + ih - t / YMAX * ih;
+    g.beginPath(); g.moveTo(M.l, y); g.lineTo(M.l + iw, y); g.stroke();
     g.textAlign = 'right'; g.fillText(t, M.l - 8, y + 4);
   }
   g.textAlign = 'center';
@@ -301,7 +327,7 @@ function drawFrame(oct, f) {
   const ring = css.getPropertyValue('--surface-1');
   for (let i = 0; i < frame.length; i += stride) {
     const [o1, o2] = oct.cells[frame[i]], n = frame[i + 1];
-    const x = M.l + o1 / 256 * iw, y = M.t + ih - o2 / 256 * ih;
+    const x = M.l + o1 / XMAX * iw, y = M.t + ih - o2 / YMAX * ih;
     const r = 2 + Math.sqrt(n / maxv) * 17;
     let alpha;
     if (vi < 0) {
@@ -1332,3 +1358,213 @@ function hoardingChart(H, vendors) {
     return sp;
   }));
 }
+
+/* ========================= survival + population model ===================== */
+/* Retention curve: P(an exposed server is still reachable) t days after it is
+   first seen, Kaplan-Meier on the dense-coverage window with a 95% band. */
+function retentionCurve(pm) {
+  const host = $('retention'); if (!host) return;
+  const S = pm.survival;                       // [[t,S,Slo,Shi], ...]
+  const W = host.clientWidth || 1100, H = 320;
+  const M = { t: 12, r: 16, b: 30, l: 46 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b, TMAX = 180;
+  const X = t => M.l + Math.min(t, TMAX) / TMAX * iw;
+  const Y = s => M.t + ih - s * ih;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+  const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+  for (let p = 0; p <= 1.0001; p += 0.25) {
+    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(p), y2: Y(p) }));
+    axis.append(el('text', { x: M.l - 8, y: Y(p) + 4, 'text-anchor': 'end' }, (p * 100) + '%'));
+  }
+  for (const t of [0, 30, 60, 90, 120, 150, 180])
+    axis.append(el('text', { x: X(t), y: H - 8, 'text-anchor': 'middle' }, t + 'd'));
+  svg.append(grid, axis);
+  const step = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+  const up = S.map(r => [X(r[0]), Y(r[3])]), dn = S.map(r => [X(r[0]), Y(r[2])]).reverse();
+  svg.append(el('path', { d: step(up) + step(dn).replace('M', 'L') + 'Z',
+    fill: PAL(2), 'fill-opacity': 0.16, stroke: 'none' }));
+  svg.append(el('path', { class: 'ser', stroke: PAL(2), d: step(S.map(r => [X(r[0]), Y(r[1])])) }));
+  const med = pm.median_lifespan_days;
+  if (med != null) {
+    svg.append(el('line', { x1: X(med), x2: X(med), y1: Y(0.5), y2: M.t + ih,
+      stroke: 'var(--text-muted)', 'stroke-dasharray': '4 4' }));
+    svg.append(el('line', { x1: M.l, x2: X(med), y1: Y(0.5), y2: Y(0.5),
+      stroke: 'var(--text-muted)', 'stroke-dasharray': '4 4' }));
+    svg.append(el('text', { x: X(med) + 6, y: Y(0.5) - 6, style: 'fill:var(--text-secondary);font-size:12px' },
+      `median ${med}d`));
+  }
+  const cur = el('line', { class: 'cursor', y1: M.t, y2: M.t + ih, opacity: 0 });
+  const dot = el('circle', { r: 4, fill: PAL(2), stroke: 'var(--surface-1)', 'stroke-width': 2, opacity: 0 });
+  svg.append(cur, dot);
+  const hit = el('rect', { x: M.l, y: M.t, width: iw, height: ih, fill: 'transparent' });
+  svg.append(hit);
+  hit.addEventListener('mousemove', ev => {
+    const bb = svg.getBoundingClientRect();
+    const t = Math.round(((ev.clientX - bb.left) / bb.width * W - M.l) / iw * TMAX);
+    let best = S[0]; for (const r of S) if (Math.abs(r[0] - t) < Math.abs(best[0] - t)) best = r;
+    cur.setAttribute('x1', X(best[0])); cur.setAttribute('x2', X(best[0])); cur.setAttribute('opacity', 1);
+    dot.setAttribute('cx', X(best[0])); dot.setAttribute('cy', Y(best[1])); dot.setAttribute('opacity', 1);
+    showTip(`<div class="d">${best[0]} days after first seen</div>` +
+      `<b>${(best[1] * 100).toFixed(0)}%</b> still reachable ` +
+      `<span style="color:var(--text-muted)">(${(best[2]*100).toFixed(0)}–${(best[3]*100).toFixed(0)}%)</span>`, ev);
+  });
+  hit.addEventListener('mouseleave', () => { hideTip(); cur.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); });
+  host.replaceChildren(svg);
+  $('retention-note').innerHTML =
+    `Half of all exposed servers vanish within <b>${med} days</b> of first being seen, ` +
+    `and roughly <b>15%</b> settle into a persistent core that lasts for months.`;
+}
+
+/* Modelled population: a survival estimate of how many servers were alive each
+   month, drawn against the raw scanner count that only ever saw a slice. */
+function populationModel(pm) {
+  const host = $('popmodel'); if (!host) return;
+  const mo = pm.months, est = pm.estimate, lo = pm.lo, hi = pm.hi, obs = pm.observed;
+  const n = mo.length, W = host.clientWidth || 1100, H = 340;
+  const M = { t: 12, r: 16, b: 26, l: 52 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+  const max = Math.max(...hi, ...obs, 1);
+  const X = i => M.l + (n < 2 ? 0 : i / (n - 1) * iw);
+  const Y = v => M.t + ih - v / max * ih;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+  const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+  for (const v of niceTicks(max)) {
+    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(v), y2: Y(v) }));
+    axis.append(el('text', { x: M.l - 8, y: Y(v) + 4, 'text-anchor': 'end' }, fmtInt(v)));
+  }
+  for (let i = 0; i < n; i += 3)
+    axis.append(el('text', { x: X(i), y: H - 8, 'text-anchor': 'middle' }, mo[i]));
+  svg.append(grid, axis);
+  const step = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+  const up = hi.map((v, i) => [X(i), Y(v)]), dn = lo.map((v, i) => [X(i), Y(v)]).reverse();
+  svg.append(el('path', { d: step(up) + step(dn).replace('M', 'L') + 'Z',
+    fill: PAL(1), 'fill-opacity': 0.15, stroke: 'none' }));
+  svg.append(el('path', { class: 'ser', stroke: PAL(1), d: step(est.map((v, i) => [X(i), Y(v)])) }));
+  svg.append(el('path', { class: 'ser', stroke: PAL(3), 'stroke-dasharray': '5 4',
+    d: step(obs.map((v, i) => [X(i), Y(v)])) }));
+  const cur = el('line', { class: 'cursor', y1: M.t, y2: M.t + ih, opacity: 0 });
+  const dots = el('g'); svg.append(cur, dots);
+  const hit = el('rect', { x: M.l, y: M.t, width: iw, height: ih, fill: 'transparent' });
+  svg.append(hit);
+  hit.addEventListener('mousemove', ev => {
+    const bb = svg.getBoundingClientRect();
+    const i = Math.round(((ev.clientX - bb.left) / bb.width * W - M.l) / iw * (n - 1));
+    if (i < 0 || i >= n) return;
+    cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('opacity', 1);
+    dots.replaceChildren(
+      el('circle', { cx: X(i), cy: Y(est[i]), r: 4, fill: PAL(1), stroke: 'var(--surface-1)', 'stroke-width': 2 }),
+      el('circle', { cx: X(i), cy: Y(obs[i]), r: 4, fill: PAL(3), stroke: 'var(--surface-1)', 'stroke-width': 2 }));
+    showTip(`<div class="d">${mo[i]}</div>` +
+      `<table><tr><td><i style="background:${PAL(1)}"></i>Modelled alive</td>` +
+      `<td class="n">${fmtInt(est[i])}</td></tr>` +
+      `<tr><td><i style="background:${PAL(1)};opacity:.4"></i>95% band</td>` +
+      `<td class="n">${fmtInt(lo[i])}–${fmtInt(hi[i])}</td></tr>` +
+      `<tr><td><i style="background:${PAL(3)}"></i>Scanners saw</td>` +
+      `<td class="n">${fmtInt(obs[i])}</td></tr></table>`, ev);
+  });
+  hit.addEventListener('mouseleave', () => { hideTip(); cur.setAttribute('opacity', 0); dots.replaceChildren(); });
+  host.replaceChildren(svg);
+  legend($('popmodel-legend'), [
+    { name: 'Modelled alive (survival estimate)', color: PAL(1) },
+    { name: 'What the scanners actually saw', color: PAL(3) },
+  ]);
+}
+
+/* ===================== fake-carrying vs clean: model size ================== */
+/* Grouped bars: for each per-host median model-size bucket, the share of
+   fake-carrying hosts vs clean hosts. Shows the premium-named boxes skew small. */
+function fakeSizeChart(fs) {
+  const host = $('fakesize'); if (!host || !fs) return;
+  const B = fs.buckets, n = B.length;
+  const W = host.clientWidth || 1100, H = 300;
+  const M = { t: 12, r: 12, b: 42, l: 42 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+  const max = Math.max(...fs.fake, ...fs.clean, 1);
+  const gw = iw / n, pad = gw * 0.18, bw = (gw - 2 * pad) / 2;
+  const Y = v => M.t + ih - v / max * ih;
+  const CF = PAL(2), CC = PAL(1);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+  const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+  for (const v of niceTicks(max)) {
+    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(v), y2: Y(v) }));
+    axis.append(el('text', { x: M.l - 8, y: Y(v) + 4, 'text-anchor': 'end' }, v + '%'));
+  }
+  B.forEach((lab, i) => {
+    const gx = M.l + i * gw + pad;
+    [['fake', CF, fs.fake[i]], ['clean', CC, fs.clean[i]]].forEach(([k, col, v], j) => {
+      const x = gx + j * bw, y = Y(v), h = M.t + ih - y;
+      const r = el('rect', { x, y, width: bw - 1, height: Math.max(0, h), rx: 3, fill: col, 'fill-opacity': 0.9 });
+      r.addEventListener('mousemove', ev => showTip(
+        `<b>${lab} GB</b><br>${k === 'fake' ? 'fake-carrying' : 'clean'} hosts: <b>${v}%</b>`, ev));
+      r.addEventListener('mouseleave', hideTip);
+      svg.append(r);
+    });
+    axis.append(el('text', { x: M.l + i * gw + gw / 2, y: H - 24, 'text-anchor': 'middle' }, lab));
+  });
+  axis.append(el('text', { x: M.l + iw / 2, y: H - 6, 'text-anchor': 'middle',
+    style: 'fill:var(--text-muted)' }, 'median model size on the host (GB)'));
+  svg.append(grid, axis);
+  host.replaceChildren(svg);
+  legend($('fakesize-legend'), [
+    { name: `Hosts carrying a fake premium model (${fs.fake_n})`, color: CF },
+    { name: `Clean hosts (${fs.clean_n})`, color: CC },
+  ]);
+}
+
+/* ===================== section outline nav + scrollspy ==================== */
+function buildNav() {
+  const wrap = document.querySelector('.wrap');
+  if (!wrap) return;
+  const nav = document.createElement('nav');
+  nav.className = 'sidenav';
+  nav.innerHTML = '<div class="nav-title">Woah\u2026llama</div>';
+  const targets = [];
+  let i = 0;
+  const addLink = (el, text, sub) => {
+    if (!el.id) el.id = 'nv-' + (i++);
+    const a = document.createElement('a');
+    a.href = '#' + el.id; a.textContent = text;
+    if (sub) a.className = 'sub';
+    nav.append(a);
+    targets.push({ el, link: a });
+  };
+  for (const node of wrap.children) {
+    if (node.classList.contains('chapter')) {
+      const t = node.querySelector('.chapter-title');
+      if (t) { const c = document.createElement('div'); c.className = 'chap'; c.textContent = t.textContent; nav.append(c); }
+    } else if (node.tagName === 'SECTION') {
+      const h = node.querySelector(':scope > h2');
+      if (h) addLink(node, h.textContent, false);
+      for (const card of node.querySelectorAll(':scope > .card')) {
+        const ch = card.querySelector(':scope > h2');
+        if (ch) addLink(card, ch.textContent, true);
+      }
+    }
+  }
+  const btn = document.createElement('button');
+  btn.className = 'navtoggle'; btn.setAttribute('aria-label', 'Sections');
+  btn.innerHTML = '<span></span>';
+  const scrim = document.createElement('div');
+  scrim.className = 'navscrim';
+  const close = () => { nav.classList.remove('open'); scrim.classList.remove('open'); };
+  btn.addEventListener('click', () => {
+    const open = nav.classList.toggle('open'); scrim.classList.toggle('open', open);
+  });
+  scrim.addEventListener('click', close);
+  nav.addEventListener('click', e => { if (e.target.tagName === 'A') close(); });
+  document.body.append(nav, scrim, btn);
+
+  let raf = 0;
+  const spy = () => {
+    raf = 0;
+    const line = 130;
+    let active = targets[0];
+    for (const t of targets) {
+      if (t.el.getBoundingClientRect().top <= line) active = t; else break;
+    }
+    for (const t of targets) t.link.classList.toggle('active', t === active);
+  };
+  addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(spy); }, { passive: true });
+  spy();
+}
+buildNav();

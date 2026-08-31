@@ -372,10 +372,16 @@ def main():
     del tot_w, ven_w
 
     # ---- 6. lifetimes ------------------------------------------------------
+    # Lifespan needs real spans, so the point-in-time surveys (FOFA/Shodan, a
+    # single-day sighting each) are excluded here: they carry no duration and
+    # would otherwise pile 80k zero-day "servers" into the under-a-day bucket.
     import bisect
+    point_ids = {i for i, disc in con.execute("SELECT id, discovery FROM source")
+                 if disc and disc.endswith("-live")}
+    span_keep = "(" + ",".join(str(i) for i in sources if i not in point_ids) + ")"
     life = con.execute(
         "SELECT server_id, min(start_ts), max(end_ts), sum(n_snap), count(*),"
-        f" count(DISTINCT source_id) FROM presence WHERE source_id IN {keep}"
+        f" count(DISTINCT source_id) FROM presence WHERE source_id IN {span_keep}"
         " GROUP BY server_id").fetchall()
     dirty_ever = {r[0] for r in con.execute("SELECT DISTINCT server_id FROM sybil_day")}
     urls = dict(con.execute("SELECT id,url FROM server"))

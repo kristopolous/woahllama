@@ -25,3 +25,10 @@ __pycache__/
 
 # private wider survey (host-level; never publish)
 /full-survey-private.json
+/history/
+/ollama-hosts.json
+/ollama-working.json
+/ollama-notworking.json
+/fofa/
+/tmp/
+survey.db.bak

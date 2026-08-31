@@ -1,27 +1,41 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Woah…llama</title>
+<meta name="description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
+<meta name="author" content="day50">
+<link rel="canonical" href="https://day50.dev/woahllama/">
 
 <!-- Open Graph / social cards. URLs point at the deploy target; unfurlers require an absolute og:image. -->
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="day50.dev">
 <meta property="og:title" content="Woah…llama">
 <meta property="og:description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
 <meta property="og:image" content="https://day50.dev/woahllama/og.png">
+<meta property="og:image:secure_url" content="https://day50.dev/woahllama/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Woah…llama, a survey of unsecured Ollama servers">
 <meta property="og:url" content="https://day50.dev/woahllama/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Woah…llama">
 <meta name="twitter:description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
 <meta name="twitter:image" content="https://day50.dev/woahllama/og.png">
+<meta name="twitter:image:alt" content="Woah…llama, a survey of unsecured Ollama servers">
 
 <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
 <div class="wrap">
 <header>
   <h1>Woah<span class="dim">…</span>llama</h1>
   <p class="sub">Eighteen months of unsecured Ollama servers, reconstructed from the
   commit history of three scanners that publish what they find.</p>
-  <p class="byline">Last updated: August 30, 2026</p>
+  <p class="byline">Last updated: August 31, 2026</p>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -151,6 +165,29 @@
     for more than a year.</p>
     <div id="lifespan"></div>
     <p class="note" id="lifespan-note" style="margin-top:10px"></p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">The odds a server is still there</h2>
+    <p class="note">Every sighting of a host, across the git scanners, FOFA, Shodan and
+    our own re-probe, is a sample of how long it stayed reachable. Fit a survival curve on
+    the window where sampling was dense and you get the chance a server is still up a given
+    number of days after it first appears. Most exposures are gone in days. A small core
+    persists for months. The shaded band is the model's confidence.</p>
+    <div id="retention"></div>
+    <p class="note" id="retention-note" style="margin-top:10px"></p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">How many were actually out there</h2>
+    <p class="note">A single scanner only ever catches a slice of the live population on
+    any given day, so the raw count understates it and jumps around with coverage. Feeding
+    every host's sightings and its later liveness check into the survival model gives a
+    smoother estimate of how many servers were probably alive each month. This is a
+    modelled estimate from sampling, not a headcount, so read the shape rather than the
+    exact number. The band is a 300-run bootstrap that also varies how long the persistent
+    core is assumed to last, which is why it fans out in recent months where the estimate
+    depends most on that assumption.</p>
+    <div id="popmodel"></div>
+    <div class="legend" id="popmodel-legend"></div>
   </div>
 </section>
 <section>
@@ -304,6 +341,49 @@
   </div>
 
   <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">Servers wearing models they cannot run</h2>
+    <p class="note">Probing live hosts directly turned up a separate oddity. Hundreds of
+    real, working Ollama boxes advertise a closed-weights model that cannot exist on
+    Ollama: <code>gpt-4</code>, <code>gpt-4o</code>, <code>claude-3-opus</code>, and newer
+    names like <code>claude-opus-4.8</code>, <code>gpt-5.5</code> and
+    <code>gemini-3.5-flash</code>. Of the live hosts we reached, 726 carried at least one
+    of these.</p>
+    <p class="note">They never appear alone. Every one of those 726 also runs genuine open
+    models, usually Qwen, DeepSeek, or an abliterated Huihui build, so these are not empty
+    decoys but real servers with fake names planted among the real ones. And the fake names
+    carry no <code>hf.co/</code> prefix the way the genuine models on the same boxes do, so
+    they are made on the machine with <code>ollama cp</code> or a Modelfile, not pulled from
+    Hugging Face. There is no upstream repo claiming to be GPT-4. It is local theatre.</p>
+    <p class="note">Two very different levels of effort sit behind it. On 708 hosts the
+    premium name points at a real but tiny 638&nbsp;MB, 1.1B, Q4_0 llama blob, a small
+    model wearing a big label. About 500 of them share one byte-identical blob, so this is a
+    single artifact copied across hundreds of machines, not hundreds of separate pranks. A
+    smaller, more deliberate seven fabricate the manifest outright: zero-byte entries whose
+    <code>parameter_size</code> is the literal string <code>synthetic</code>, listing
+    current premium models they demonstrably do not hold, each sitting beside per-host
+    <code>gateway-diagnostic</code> entries. That tier looks like a catalogue kept
+    up to date on purpose, or a scanner planting its own write-test marker. We cannot tell
+    which from here.</p>
+    <p class="note">One detail gives the game away: which names get faked. Whenever a real
+    model actually sits behind the fake label, the label is a 2024 trophy, almost always
+    <code>gpt-4</code>, <code>gpt-4o</code> or <code>claude-3-opus</code>. The current
+    flagships, <code>claude-opus-4.8</code> or <code>gpt-5.5</code>, turn up only as the
+    empty synthetic manifests, never with weights behind them. So nobody parks a cheap model
+    behind a current name and invites you to test it. The impersonation is frozen where it
+    started, reaching for models that were the state of the art when these boxes were set up
+    and have since been passed by weights anyone can download for free. Even the successful
+    version of this lie now points at something a small open model would beat.</p>
+    <p class="note">The fake names are not the only small thing on these boxes. Setting the
+    fakes aside and measuring the real models, hosts carrying a premium name run
+    noticeably smaller models than clean hosts: a median of 1.9&nbsp;GB against 4.7&nbsp;GB,
+    with 42% under a gigabyte versus 16%. They also cluster on old Ollama versions, a fifth
+    of them on 0.30.2 alone, where clean hosts spread across many including current
+    releases. So the premium label tends to sit on an older, lighter, less maintained box.</p>
+    <div id="fakesize"></div>
+    <div class="legend" id="fakesize-legend"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
     <h2 style="font-size:15px">So what is it?</h2>
     <p class="note">Unknown, and the data does not let us pretend otherwise. What is
     established is narrow. Within OllamaSpider's feed, hundreds of live hosts answer the
@@ -372,3 +452,5 @@
 <div class="tip" id="tip"></div>
 <script src="charts.js"></script>
 <script src="app.js"></script>
+</body>
+</html>
