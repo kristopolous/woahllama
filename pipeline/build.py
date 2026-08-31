@@ -12,6 +12,7 @@ ever recorded share a single honeypot fingerprint.
 """
 import collections, datetime, gzip, json, pathlib, sqlite3
 from mask import mask_host
+from vendors import vendor as vendor_of
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # OllamaSpider is excluded: only 15.6% of the servers it reports sit on Ollama's
@@ -111,7 +112,8 @@ def main():
                  reverse=True)[:TOP_MODELS]
     write(OUT/"models.json", {"day0": d0, "ndays": ndays,
                               "all": {m: ser["model_all"][m] for m in top},
-                              "clean": {m: ser["model_clean"][m] for m in top}})
+                              "clean": {m: ser["model_clean"][m] for m in top},
+                              "vendor": {m: vendor_of(m) for m in top}})
     write(OUT/"vendors.json", {"day0": d0, "ndays": ndays,
                                "all": dict(ser["vendor_all"]),
                                "clean": dict(ser["vendor_clean"])})
@@ -333,6 +335,9 @@ def main():
     grid = [0, .25, .5, 1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180,
             240, 300, 365, 450, 560]
     out = {"n": len(life), "end_ts": hi}
+    HBUCKETS = [(0, 1, "under a day"), (1, 7, "1–7 days"), (7, 30, "1–4 weeks"),
+                (30, 90, "1–3 months"), (90, 180, "3–6 months"),
+                (180, 365, "6–12 months"), (365, 1e9, "over a year")]
     for name, rows in (("all", life),
                        ("clean", [r for r in life if r[0] not in dirty_ever])):
         spans = sorted((r[2]-r[1])/DAY for r in rows)
@@ -341,6 +346,8 @@ def main():
             "n": n, "median": spans[n//2], "mean": sum(spans)/n,
             "survival": [[t, (n-bisect.bisect_left(spans, t))/n] for t in grid],
             "still_live": sum(1 for r in rows if r[2] > hi-7*DAY)/n,
+            "hist": [[lab, sum(1 for s in spans if lo <= s < hi_)]
+                     for lo, hi_, lab in HBUCKETS],
         }
     longest = sorted((r for r in life if r[0] not in dirty_ever),
                      key=lambda r: (-(r[2]-r[1]), -r[3]))[:200]

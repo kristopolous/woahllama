@@ -94,7 +94,9 @@ button, select {
   font: inherit; font-size: 13px; color: var(--text-primary);
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 6px; padding: 5px 11px; cursor: pointer;
+  max-width: 100%; min-width: 0;
 }
+#model-pick { flex: 1 1 200px; }
 button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1);
   border-color: var(--text-primary); }
 button:hover, select:hover { border-color: var(--text-muted); }

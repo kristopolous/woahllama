@@ -1,6 +1,14 @@
 /* woah...llama - page wiring */
 const PAL = n => `var(--series-${n})`;
 const SERIES_COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map(PAL);
+function vendorColors(vendors) {
+  const top = Object.keys(vendors.clean)
+    .sort((a, b) => Math.max(...vendors.clean[b]) - Math.max(...vendors.clean[a]))
+    .slice(0, 8);
+  const map = {};
+  top.forEach((v, i) => { map[v] = SERIES_COLORS[i]; });
+  return { map, top, other: 'var(--decoy)', colorFor: v => map[v] || 'var(--decoy)' };
+}
 const SOURCE_LABEL = {
   'awesome-ollama-server': 'Awesome-Ollama-Server (FOFA)',
   'ollamalist': 'ollamalist (accumulated)',
@@ -42,8 +50,8 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     sizeChart(sizes);
     quantChart(sizes);
     poolScatter(pools);
-    blocksChart(models);
-    topServers(life);
+    blocksChart(models, vendors);
+    lifespanHist(life);
     addEventListener('resize', debounce(() => {
       population(counts); vendorChart(vendors, counts);
       modelChart(models, true); geoChart(geo, true);
@@ -208,7 +216,8 @@ function modelChart(models, keep) {
   if (!sel.options.length) {
     sel.innerHTML = '<option value="">Add a model…</option>' + names.slice()
       .sort((a, b) => peak(b) - peak(a))
-      .map(n => `<option value="${n}">${n} (peak ${peak(n).toLocaleString()})</option>`).join('');
+      .map(n => { const label = n.length > 30 ? n.slice(0, 29) + '…' : n;
+        return `<option value="${n}">${label} · ${peak(n).toLocaleString()}</option>`; }).join('');
     sel.onchange = () => {
       if (sel.value && !modelPick.includes(sel.value)) modelPick = [...modelPick, sel.value].slice(-8);
       sel.value = '';
@@ -331,18 +340,38 @@ function bubbles(oct) {
 }
 
 /* ---- top table */
-function topServers(life) {
-  const rows = life.top.slice(0, 40).map(r => `<tr>
-    <td><code>${r.url}</code></td>
-    <td>${r.cc || '-'}${r.city ? ' · ' + r.city : ''}</td>
-    <td class="n">${r.days}</td>
-    <td class="n">${r.obs.toLocaleString()}</td>
-    <td class="n">${r.runs}</td>
-    <td class="n">${r.sources}</td></tr>`).join('');
-  $('top-servers').innerHTML = `<thead><tr>
-    <th>server</th><th>location</th><th style="text-align:right">days</th>
-    <th style="text-align:right">obs</th><th style="text-align:right">runs</th>
-    <th style="text-align:right">scanners</th></tr></thead><tbody>${rows}</tbody>`;
+/* -------------------------------------------------------- lifespan histogram */
+function lifespanHist(life) {
+  const host = $('lifespan');
+  const data = life.clean.hist;                 // [[label, count], ...]
+  const W = host.clientWidth || 1100, rowH = 34, pad = 8;
+  const H = data.length * rowH + pad * 2;
+  const labelW = 108, numW = 70, iw = W - labelW - numW - 12;
+  const max = Math.max(...data.map(d => d[1]));
+  const total = data.reduce((a, d) => a + d[1], 0);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+  data.forEach(([label, n], i) => {
+    const y = pad + i * rowH, bw = Math.max(2, n / max * iw);
+    const last = i === data.length - 1;
+    svg.append(el('text', { x: labelW - 10, y: y + rowH / 2 + 4, 'text-anchor': 'end',
+      style: 'fill:var(--text-secondary);font-size:12.5px' }, label));
+    const bar = el('rect', { x: labelW, y: y + 5, width: bw, height: rowH - 12, rx: 4,
+      fill: last ? 'var(--series-2)' : 'var(--series-1)', opacity: last ? 0.95 : 0.85 });
+    svg.append(bar);
+    svg.append(el('text', { x: labelW + bw + 8, y: y + rowH / 2 + 4,
+      style: 'fill:var(--text-primary);font-size:12.5px;font-family:ui-monospace,Menlo,monospace' },
+      n.toLocaleString() + '  ' + (n / total * 100).toFixed(0) + '%'));
+    const hit = el('rect', { x: 0, y, width: W, height: rowH, fill: 'transparent' });
+    hit.addEventListener('mousemove', ev => showTip(
+      `<b>${label}</b><br>${n.toLocaleString()} servers (${(n / total * 100).toFixed(1)}%)`, ev));
+    hit.addEventListener('mouseleave', hideTip);
+    svg.append(hit);
+  });
+  host.replaceChildren(svg);
+  const yr = data[data.length - 1][1];
+  $('lifespan-note').innerHTML =
+    `Median lifespan is <b>${life.clean.median.toFixed(1)} days</b>, but
+     <b>${yr.toLocaleString()}</b> servers stayed reachable for over a year.`;
 }
 
 
@@ -941,7 +970,7 @@ function blockEvents(models) {
   return out;
 }
 
-function blocksChart(models) {
+function blocksChart(models, vendors) {
   const host = $('blocks');
   const W = host.clientWidth || 1100, H = 380;
   const M = { t: 16, r: 14, b: 26, l: 46 };
@@ -961,7 +990,8 @@ function blocksChart(models) {
     return z >= 0 ? cy - gap - s : cy + gap + s;
   };
   const R = delta => 2.5 + Math.min(13, Math.sqrt(Math.abs(delta)) * 1.05);
-  const UP = 'var(--series-3)', DN = 'var(--series-8)';
+  const vc = vendorColors(vendors);
+  const colOf = e => vc.colorFor(models.vendor[e.name]);
 
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
   const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
@@ -992,17 +1022,15 @@ function blocksChart(models) {
   ev.sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta));
   for (const e of ev) {
     const c = el('circle', { cx: X(e.day), cy: Y(e.z), r: R(e.delta),
-      fill: e.delta > 0 ? UP : DN, 'fill-opacity': 0.5,
+      fill: colOf(e), 'fill-opacity': 0.62,
       stroke: 'var(--surface-1)', 'stroke-width': 1 });
     c.addEventListener('mousemove', ev2 => showTip(blockTip(e, day0), ev2));
     c.addEventListener('mouseleave', hideTip);
     svg.append(c);
   }
   host.replaceChildren(svg);
-  legend($('blocks-legend'), [
-    { name: 'block came online', color: UP },
-    { name: 'block went offline', color: DN },
-  ]);
+  legend($('blocks-legend'),
+    vc.top.map(v => ({ name: v, color: vc.map[v] })));
 }
 
 /* tooltip: the event, plus a mini histogram of the model's daily changes with
@@ -1029,7 +1057,7 @@ function blockTip(e, day0) {
   }).join('');
   const date = fmtDay(dayDate(day0, e.day));
   return `<div class="d">${date}</div>
-    <b style="color:${e.delta > 0 ? 'var(--series-3)' : 'var(--series-8)'}">${e.name}</b><br>
+    <b>${e.name}</b><br>
     ${e.from.toLocaleString()} → ${e.to.toLocaleString()} servers
     (${e.delta > 0 ? '+' : ''}${e.delta}) at ${e.z > 0 ? '+' : ''}${e.z.toFixed(0)} MAD
     <div style="margin-top:6px;color:var(--text-muted);font-size:11px">its daily changes;

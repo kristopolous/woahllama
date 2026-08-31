@@ -142,11 +142,12 @@
     <div class="legend" id="blocks-legend"></div>
   </div>
   <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">The stubborn ones</h2>
-    <p class="note">Longest-lived individual servers. <b>obs</b> counts sightings,
-    <b>runs</b> counts separate stretches of availability. A low run count against a high
-    observation count means it never went down.</p>
-    <div class="scroll"><table class="data" id="top-servers"></table></div>
+    <h2 style="font-size:15px">How long a server stays open</h2>
+    <p class="note">Every server's lifespan, from its first sighting to its last. Most
+    are gone within a week, but a stubborn tail stays reachable for months, and hundreds
+    for more than a year.</p>
+    <div id="lifespan"></div>
+    <p class="note" id="lifespan-note" style="margin-top:10px"></p>
   </div>
 </section>
 <section>
