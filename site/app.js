@@ -15,6 +15,7 @@ const SOURCE_LABEL = {
   'ollamaspider': 'OllamaSpider (Shodan)',
   'fofa-survey': 'FOFA survey (point-in-time)',
   'shodan-survey': 'Shodan survey (point-in-time)',
+  'live-probe': 'Live probe (daily)',
 };
 
 const load = n => fetch(`data/${n}.json`).then(r => {
@@ -114,7 +115,7 @@ function stats(counts, life, pools, mapd) {
   const lone = pools.scatter.filter(r => r[0] === 1).length;
   const yr = life.clean.survival.find(s => s[0] === 365)[1];
   const cells = [
-    [counts.ndays, 'days watched', 'Feb 2025 – Aug 2026'],
+    [counts.ndays, 'days watched', 'Feb 2025 – Sep 2026'],
     [life.n.toLocaleString(), 'servers found', 'each seen at least once'],
     [peak.toLocaleString(), 'open at the peak',
      new Date((counts.day0 + peakDay * 86400) * 1000).toISOString().slice(0, 10)],
@@ -192,18 +193,21 @@ function mkLegend(host) {
 function vendorChart(vendors, counts) {
   const totals = {};
   for (const k in vendors.clean) totals[k] = Math.max(...vendors.clean[k]);
+  // the top 8 are picked once, off the default view, so toggling the Chapter 2
+  // exclusion changes the lines rather than reshuffling which labs are drawn
   const top = Object.keys(totals).sort((a, b) => totals[b] - totals[a]).slice(0, 8);
+  const ndays = vendors.clean[top[0]].length;
   // cohort denominator: total lab attributions that day, so share reads as
   // "of the models we can trace to a lab, whose" and the shrinking overall
   // coverage cancels instead of dragging every line down together
-  const allV = Object.keys(vendors.clean);
-  const ndays = vendors.clean[top[0]].length;
-  const cohort = Array.from({ length: ndays }, (_, d) =>
-    allV.reduce((s, k) => s + vendors.clean[k][d], 0));
+  const cohortOf = src => Array.from({ length: ndays }, (_, d) =>
+    Object.keys(src).reduce((s, k) => s + src[k][d], 0));
   const render = share => {
+    const src = strict && vendors.strict ? vendors.strict : vendors.clean;
+    const cohort = cohortOf(src);
     const series = top.map((k, i) => ({
       name: k, color: SERIES_COLORS[i],
-      values: smooth(vendors.clean[k].map((v, d) =>
+      values: smooth((src[k] || new Array(ndays).fill(0)).map((v, d) =>
         share ? (cohort[d] ? v / cohort[d] * 100 : 0) : v)),
     }));
     timeChart($('vendors'), {
@@ -213,10 +217,17 @@ function vendorChart(vendors, counts) {
     });
     legend($('vendors-legend'), series);
   };
+  const isShare = () => $('ven-share').getAttribute('aria-pressed') === 'true';
+  let strict = false;
   pair($('ven-share'), $('ven-abs'), 1, 0, render);
+  $('ven-q').onclick = () => {
+    strict = !strict;
+    $('ven-q').setAttribute('aria-pressed', strict);
+    render(isShare());
+  };
   $('smooth-w').onchange = e => {
     SMOOTH_W = +e.target.value;
-    render($('ven-share').getAttribute('aria-pressed') === 'true');
+    render(isShare());
     modelChart(window.__models, true);
     geoChart(window.__geo, true);
   };

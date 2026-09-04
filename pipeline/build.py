@@ -8,7 +8,8 @@ comes in two variants:
   clean  - identical-catalogue clusters removed (see clusters.py)
 
 Both ship because the gap between them is itself a finding: ~31% of all servers
-ever recorded share a single honeypot fingerprint.
+ever recorded share a single honeypot fingerprint.  The vendor series carries a
+third variant, `strict`, which also drops the servers questionable.py flags.
 """
 import collections, datetime, gzip, json, pathlib, sqlite3
 from mask import mask_host
@@ -48,6 +49,13 @@ def main():
     print(f"{ndays} days from {d0}")
 
     sybil = set(con.execute("SELECT server_id, day FROM sybil_day"))
+
+    # Servers that failed one of Chapter 2's tests (see questionable.py). This is
+    # a per-machine judgement, where sybil_day is a per-day one, so the two are
+    # kept apart and the page offers this one as an optional extra exclusion.
+    questionable = {r[0] for r in con.execute(
+        "SELECT server_id FROM questionable_server")}
+    print(f"  {len(questionable):,} servers flagged questionable")
 
     # `-cloud` tags proxy to Ollama's hosted service: no weights on the machine,
     # no disk, no GPU. They are not a deployment, so they are dropped from every
@@ -90,7 +98,8 @@ def main():
         "SELECT m.id, m.base, mv.vendor FROM model m"
         " JOIN model_vendor mv ON mv.model_id=m.id")}
     ser = {k: collections.defaultdict(lambda: [0]*ndays)
-           for k in ("model_all", "model_clean", "vendor_all", "vendor_clean")}
+           for k in ("model_all", "model_clean", "vendor_all", "vendor_clean",
+                     "vendor_strict")}
     seen = collections.defaultdict(set)
     for svid, mid, a, b in con.execute(
             f"SELECT server_id,model_id,(start_ts-?)/?,(end_ts-?)/? FROM server_model"
@@ -108,6 +117,8 @@ def main():
                     ser[f"{key}_all"][name][d] += 1
                     if not dirty:
                         ser[f"{key}_clean"][name][d] += 1
+                        if key == "vendor" and svid not in questionable:
+                            ser["vendor_strict"][name][d] += 1
     top = sorted(ser["model_clean"], key=lambda m: max(ser["model_clean"][m]),
                  reverse=True)[:TOP_MODELS]
     write(OUT/"models.json", {"day0": d0, "ndays": ndays,
@@ -116,7 +127,8 @@ def main():
                               "vendor": {m: vendor_of(m) for m in top}})
     write(OUT/"vendors.json", {"day0": d0, "ndays": ndays,
                                "all": dict(ser["vendor_all"]),
-                               "clean": dict(ser["vendor_clean"])})
+                               "clean": dict(ser["vendor_clean"]),
+                               "strict": dict(ser["vendor_strict"])})
     del seen
 
     # ---- 4. country --------------------------------------------------------
@@ -375,9 +387,12 @@ def main():
     # Lifespan needs real spans, so the point-in-time surveys (FOFA/Shodan, a
     # single-day sighting each) are excluded here: they carry no duration and
     # would otherwise pile 80k zero-day "servers" into the under-a-day bucket.
+    # The daily live probe is kept: it re-checks the same hosts on successive
+    # days, so its presence rows are genuine first-to-last spans.
     import bisect
+    POINT_DISCOVERY = {"fofa-live", "shodan-live"}
     point_ids = {i for i, disc in con.execute("SELECT id, discovery FROM source")
-                 if disc and disc.endswith("-live")}
+                 if disc in POINT_DISCOVERY}
     span_keep = "(" + ",".join(str(i) for i in sources if i not in point_ids) + ")"
     life = con.execute(
         "SELECT server_id, min(start_ts), max(end_ts), sum(n_snap), count(*),"
@@ -464,6 +479,17 @@ def main():
         "composition": comp,
         "scatter": scatter,
     })
+
+    # ---- prose figures ------------------------------------------------------
+    # These are quoted in site/index.html rather than read from JSON, so print
+    # them on every rebuild: a re-scan shifts them and the copy has to follow.
+    inst, cl, big, bigcl = con.execute(
+        "SELECT COUNT(*), SUM(mm.is_cloud=1), SUM(mm.params_b>=90),"
+        " SUM(mm.params_b>=90 AND mm.is_cloud=1) FROM server_model sm"
+        f" JOIN model_meta mm ON mm.model_id=sm.model_id WHERE sm.source_id IN {keep}"
+    ).fetchone()
+    print(f"  copy: servers found {len(life):,} | -cloud tags {100*cl/inst:.1f}% of installs,"
+          f" {100*bigcl/big:.0f}% of installs at 90B+")
 
     con.close()
 

@@ -32,3 +32,5 @@ __pycache__/
 /fofa/
 /tmp/
 survey.db.bak
+/graflex/
+/convo.txt

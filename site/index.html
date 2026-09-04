@@ -32,10 +32,10 @@
 
 <div class="wrap">
 <header>
-  <h1>29,787 unsecured Ollama servers and an unsolved mystery</h1>
-  <p class="sub">An eighteen month survey of open Ollama servers, reconstructed from the
+  <h1>30,943 Open Ollama Servers and an Unsolved Mystery</h1>
+  <p class="sub">An eighteen month survey of unsecured Ollama servers reconstructed from the
   commit history of three scanners with hundreds of mysterious servers that aren't as they appear.</p>
-  <p class="byline">Last updated: August 31, 2026</p>
+  <p class="byline">Last updated: September 4, 2026</p>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -82,8 +82,14 @@
   <p class="note">Servers grouped by the lab that trained the base model, not the model
   name, so Qwen stays one line as it moves from 2.5 to 3 to 3.6. A server counts once per
   vendor it hosts, so shares sum past 100%.</p>
+  <p class="note"><b>Exclude questionable</b> drops every server that fails one of the
+  Chapter 2 tests: it reports the fixed phantom catalogue, advertises a closed-weights
+  model that cannot exist in Ollama, advertises a scratch name like <code>test</code>, or
+  reports a blob size that disagrees with the published one. The tests go by model name,
+  so a community re-upload that keeps a commercial model's name is caught with them.</p>
   <div class="card">
     <div class="controls">
+      <button id="ven-q" aria-pressed="false">Exclude questionable</button>
       <button id="ven-share" aria-pressed="true">Share of servers</button>
       <button id="ven-abs" aria-pressed="false">Server count</button>
       <span class="spacer"></span>
@@ -405,15 +411,16 @@
 </section>
 <section>
   <h2>Methodology: What the scanners actually saw</h2>
-  <p class="note">The raw feed behind Chapter 1. Two scanners contribute: one FOFA-based,
-  six countries only, and one accumulating list. A third, OllamaSpider, is excluded here.
+  <p class="note">The raw feed behind Chapter 1. Five sources contribute: two GitHub scanners, one
+  FOFA-based and six countries only, the other an accumulating list, plus point-in-time
+  FOFA and Shodan pulls and our own daily re-probe. OllamaSpider is excluded here.
   Only 15.6% of what it reports sits on Ollama's port against about 47% for the other two,
   it sprawls across 7,911 ports including CouchDB and Consul, and half its servers fall in
   the responder blocks from Chapter 2.</p>
   <p class="note"><b>Total</b> deduplicates a server seen by both.
   Model tags ending <code>-cloud</code> are dropped throughout, since those proxy to
   Ollama's hosted service and commit no weights, disk or GPU on the reporting machine. They
-  are 0.27% of installs but 15% of everything at 90B parameters and above.</p>
+  are 3.1% of installs but 32% of everything at 90B parameters and above.</p>
   <p class="note"><b>Collapse duplicates</b> also folds together groups of 50+ addresses reporting the same
   model list on the same day.</p>
   <div class="card">

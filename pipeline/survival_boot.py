@@ -31,6 +31,13 @@ for h, mt in c.execute("SELECT ip||':'||port, mtime FROM fofa_host WHERE mtime!=
 for h, ts in c.execute("SELECT host, ts FROM shodan_host WHERE ts!=''"): so(h, od(ts))
 for h, st, ck in c.execute("SELECT host, status, checked FROM probe WHERE checked!=''"):
     (so if st == 'working' else sf)(h, od(ck))
+# daily live probe: online-only sightings. A host missing from a later run is not
+# evidence it died - those runs cover a partial candidate list - so nothing here
+# sets an offline bound.
+if c.execute("SELECT name FROM sqlite_master WHERE type='table'"
+             " AND name='daily_probe'").fetchone():
+    for h, ck in c.execute("SELECT host, checked FROM daily_probe WHERE service='ollama'"):
+        so(h, od(ck))
 con.close()
 
 hosts = list(on)

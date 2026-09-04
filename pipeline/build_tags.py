@@ -107,9 +107,9 @@ if __name__ == "__main__":
 def build_site_aggregate():
     """Comparative aggregate for the mystery-section chart: per-host median genuine
     model size, fake-carrying vs clean cohorts. Shares only, no addresses."""
-    import re, json, statistics, collections, os, sqlite3
+    import json, statistics, collections, os, sqlite3
+    from questionable import IMPOSSIBLE_RE as IMP   # one definition, shared
     con = sqlite3.connect(DB); c = con.cursor()
-    IMP = re.compile(r'^(gpt-?[345]|gpt-4o|o[134]\b|chatgpt|claude|gemini|grok|dall-?e)', re.I)
     hm = collections.defaultdict(list)
     for host, name, size in c.execute("SELECT host,name,size FROM tags_model WHERE size>0"):
         hm[host].append((name, size))

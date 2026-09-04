@@ -37,6 +37,12 @@ for host, ts in c.execute("SELECT host, ts FROM shodan_host WHERE ts!=''"):
     see_online(host, d(ts))
 for host, st, ck in c.execute("SELECT host, status, checked FROM probe WHERE checked!=''"):
     (see_online if st == 'working' else see_offline)(host, d(ck))
+# daily live probe: online-only sightings (a host missing from a later run was
+# not necessarily probed, so absence is not an offline bound)
+if c.execute("SELECT name FROM sqlite_master WHERE type='table'"
+             " AND name='daily_probe'").fetchone():
+    for host, ck in c.execute("SELECT host, checked FROM daily_probe WHERE service='ollama'"):
+        see_online(host, d(ck))
 
 hosts = set(online) | set(offline)
 print(f"unified hosts (ip:port) across all sources: {len(hosts)}")
@@ -114,6 +120,9 @@ def build_population():
     for h,ts in c.execute("SELECT host,ts FROM shodan_host WHERE ts!=''"): so(h,d(ts))
     for h,st,ck in c.execute("SELECT host,status,checked FROM probe WHERE checked!=''"):
         (so if st=='working' else sf)(h,d(ck))
+    if c.execute("SELECT name FROM sqlite_master WHERE type='table'"
+                 " AND name='daily_probe'").fetchone():
+        for h,ck in c.execute("SELECT host,checked FROM daily_probe WHERE service='ollama'"): so(h,d(ck))
     con.close()
     # KM with Greenwood CI, calibrated on robust-window births
     obs=[]

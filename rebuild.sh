@@ -1,7 +1,7 @@
 #!/bin/sh
 # Rebuild every derived artefact. Safe to re-run; the ollama.com scrape is cached
 # in library_cache.json, so only new model names are fetched.
-set -e
+set -ex
 cd "$(dirname "$0")/pipeline"
 
 # ---- merge the private point-in-time surveys into survey.db FIRST, so the model
@@ -10,6 +10,9 @@ cd "$(dirname "$0")/pipeline"
 if [ -d ../tmp/graflex ]; then
   python3 fofa_ingest.py    >/dev/null 2>&1 && echo "  fofa ingest   ok" || true
   python3 shodan_ingest.py  >/dev/null 2>&1 && echo "  shodan ingest ok" || true
+fi
+if [ -d ../graflex ]; then
+  python3 graflex_daily.py   >/dev/null 2>&1 && echo "  daily probe   ok" || true
 fi
 if [ -f ../fofa/fofa.db ]; then
   python3 ingest_snapshot.py >/dev/null && echo "  survey merge  ok"
@@ -24,6 +27,7 @@ python3 modelmeta.py       >/dev/null && echo "  model meta   ok"
 python3 clusters.py        >/dev/null && echo "  clusters     ok"
 python3 spider_sizes.py    >/dev/null && echo "  spider sizes ok"
 python3 strange.py
+python3 questionable.py
 # geolocate any new servers (needs the dbip city-lite CSV in pipeline/; if it is
 # missing, existing server_geo is kept and new hosts stay off the map/country charts)
 CSV=$(ls dbip-city-lite-*.csv.gz 2>/dev/null | tail -1 || true)
