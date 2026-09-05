@@ -64,6 +64,18 @@ def main():
         "SELECT model_id FROM model_meta WHERE is_cloud=1")}
     print(f"  dropping {len(cloud)} cloud-proxied model names")
 
+    # A `claude-3-opus:latest` or `gpt-4:latest` blob on an Ollama host is not a
+    # model that lab trained and shipped as weights, so it must not count toward
+    # that lab in "who trained the models". Dropped from the vendor series only:
+    # the name itself is still a real thing these hosts report, and Chapter 2 is
+    # where that belongs. Community merges that merely mention a commercial name
+    # (`qwythos-9b-claude-mythos-5-1m`) do not match and keep their attribution.
+    from questionable import IMPOSSIBLE_RE, IMPOSSIBLE_NAMES
+    impossible = {i for i, n in con.execute("SELECT id, name FROM model")
+                  if IMPOSSIBLE_RE.match(n)
+                  or n.split(':')[0].lower() in IMPOSSIBLE_NAMES}
+    print(f"  dropping {len(impossible)} closed-weights names from lab attribution")
+
     def days(a, b):
         return range(max(a, 0), min(b, ndays - 1) + 1)
 
@@ -111,6 +123,8 @@ def main():
         for d in days(a, b):
             dirty = (svid, d) in sybil
             for key, name in (("model", base), ("vendor", vend)):
+                if key == "vendor" and mid in impossible:
+                    continue
                 k = (key, name, d)
                 if svid not in seen[k]:
                     seen[k].add(svid)

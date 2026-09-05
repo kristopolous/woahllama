@@ -87,7 +87,10 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
 
 /* Centred moving average. The scanners run at different times of day, so the
    raw daily series carries sampling noise that hides the trend. */
-let SMOOTH_W = 3;
+// 7 days by default: the survey's sources hand over to each other at the end of
+// the series, and a 3-day window renders that handover as a step change in
+// composition rather than as the coverage artefact it is.
+let SMOOTH_W = 7;
 function smooth(vals, w = SMOOTH_W) {
   if (w <= 1) return vals;
   const half = (w - 1) / 2;
@@ -202,8 +205,26 @@ function vendorChart(vendors, counts) {
   // coverage cancels instead of dragging every line down together
   const cohortOf = src => Array.from({ length: ndays }, (_, d) =>
     Object.keys(src).reduce((s, k) => s + src[k][d], 0));
+  // what the Chapter 2 exclusion takes out, summed over the survey. Reported
+  // because the share denominator shrinks with it, and a lab whose server count
+  // falls can still gain share - which reads as a bug unless it is spelled out.
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const removed = Object.keys(vendors.clean).map(k => {
+    const c = sum(vendors.clean[k]), t = sum((vendors.strict || {})[k] || [0]);
+    return { k, c, t, pct: c ? (c - t) / c * 100 : 0, drawn: top.includes(k) };
+  }).filter(r => r.c > 0);
+  const cTot = sum(removed.map(r => r.c)), tTot = sum(removed.map(r => r.t));
+  const worst = removed.filter(r => r.c >= cTot / 500)
+    .sort((a, b) => b.pct - a.pct).slice(0, 3);
+  const note = `Excluding questionable removes ${Math.round((cTot - tTot) / cTot * 100)}% `
+    + `of all lab attributions. Shares are of what is left, so a lab can gain share `
+    + `here while its server count falls. Hardest hit: `
+    + worst.map(r => `${r.k} &minus;${Math.round(r.pct)}%`).join(', ')
+    + `. Labs outside the top eight are counted in the denominator but not drawn.`;
+
   const render = share => {
     const src = strict && vendors.strict ? vendors.strict : vendors.clean;
+    $('vendors-note').innerHTML = strict ? note : '';
     const cohort = cohortOf(src);
     const series = top.map((k, i) => ({
       name: k, color: SERIES_COLORS[i],

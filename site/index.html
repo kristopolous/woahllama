@@ -81,7 +81,10 @@
   <h2>Who trained the models</h2>
   <p class="note">Servers grouped by the lab that trained the base model, not the model
   name, so Qwen stays one line as it moves from 2.5 to 3 to 3.6. A server counts once per
-  vendor it hosts, so shares sum past 100%.</p>
+  vendor it hosts, so shares sum past 100%. A name claiming a closed-weights commercial
+  model, <code>claude-3-opus:latest</code> or <code>gpt-4:latest</code>, counts toward no
+  lab at all, because no lab shipped those as weights. <code>gpt-oss</code> is real and
+  still counts for OpenAI.</p>
   <p class="note"><b>Exclude questionable</b> drops every server that fails one of the
   Chapter 2 tests: it reports the fixed phantom catalogue, advertises a closed-weights
   model that cannot exist in Ollama, advertises a scratch name like <code>test</code>, or
@@ -96,13 +99,14 @@
       <label class="note" style="margin:0">smoothing
         <select id="smooth-w">
           <option value="1">none</option>
-          <option value="3" selected>3 days</option>
-          <option value="7">7 days</option>
+          <option value="3">3 days</option>
+          <option value="7" selected>7 days</option>
           <option value="15">15 days</option>
         </select></label>
     </div>
     <div id="vendors"></div>
     <div class="legend" id="vendors-legend"></div>
+    <p class="note" id="vendors-note" style="margin-top:10px"></p>
   </div>
 </section>
 <section>
