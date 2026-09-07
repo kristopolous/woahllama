@@ -17,6 +17,10 @@ fi
 if [ -f ../fofa/fofa.db ]; then
   python3 ingest_snapshot.py >/dev/null && echo "  survey merge  ok"
 fi
+# server_geo cannot be regenerated without the db-ip CSV, and ingest.py drops it
+# with the rest of survey.db. Re-attach the saved placements by URL before any
+# chart reads them; a no-op when nothing was ever saved.
+python3 geo_keep.py restore
 if [ -d ../tmp/graflex/tags ]; then
   python3 build_tags.py >/dev/null && echo "  tag pull dates ok"   # writes site/data/fake_size.json
 fi
@@ -43,3 +47,4 @@ python3 build_hoarding.py
 if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi
+python3 geo_keep.py save
