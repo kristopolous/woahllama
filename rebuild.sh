@@ -34,6 +34,10 @@ CSV=$(ls dbip-city-lite-*.csv.gz 2>/dev/null | tail -1 || true)
 if [ -n "$CSV" ]; then python3 geo.py "$CSV" >/dev/null && echo "  geolocate    ok"; fi
 python3 build.py
 python3 build_probe.py
+# ollama.com's advertised pull counts, cached per fetch day; the chart
+# still builds from the last snapshot if the scrape fails or is offline
+python3 library_pulls.py || true
+python3 build_pulls.py
 python3 survey_versions.py
 python3 build_hoarding.py
 if [ -f ../fofa/fofa.db ]; then

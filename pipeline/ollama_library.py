@@ -73,9 +73,19 @@ def main(names):
 if __name__ == "__main__":
     import sqlite3
     con = sqlite3.connect(ROOT / "survey.db")
-    rows = con.execute("""SELECT m.base, count(DISTINCT sm.server_id) n
-        FROM model m JOIN server_model sm ON sm.model_id=m.id
-        WHERE sm.source_id IN (1,2) GROUP BY m.base ORDER BY n DESC""").fetchall()
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 400
-    names = [b for b, _ in rows if "/" not in b and not b.startswith("hf.co")][:limit]
+
+    def top(where):
+        rows = con.execute(f"""SELECT m.base, count(DISTINCT sm.server_id) n
+            FROM model m JOIN server_model sm ON sm.model_id=m.id
+            WHERE {where} GROUP BY m.base ORDER BY n DESC""").fetchall()
+        return [b for b, _ in rows if "/" not in b and not b.startswith("hf.co")][:limit]
+
+    # Rank over every source, not just the two git scanners: the FOFA, Shodan
+    # and live-probe merges bring their own model names, and a name nobody
+    # resolves has no size, so it drops out of the size and hoarding charts.
+    # Unioned with the git-scanner ranking so widening the population can never
+    # drop a name that used to be looked up. Misses cache as {} and are not
+    # re-fetched, so the extra names cost one pass, once.
+    names = list(dict.fromkeys(top("sm.source_id IN (1,2)") + top("1=1")))
     main(names)

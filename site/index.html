@@ -32,10 +32,10 @@
 
 <div class="wrap">
 <header>
-  <h1>30,943 Open Ollama Servers and an Unsolved Mystery</h1>
+  <h1>31,797 Open Ollama Servers and an Unsolved Mystery</h1>
   <p class="sub">An eighteen month survey of unsecured Ollama servers reconstructed from the
   commit history of three scanners with hundreds of mysterious servers that aren't as they appear.</p>
-  <p class="byline">Last updated: September 4, 2026</p>
+  <p class="byline">Last updated: September 7, 2026</p>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -120,6 +120,30 @@
     </div>
     <div id="models"></div>
     <div class="legend" id="models-legend"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Downloaded a lot, or left running a lot</h2>
+  <p class="note">ollama.com publishes a cumulative pull count for each of its
+  <span id="pulls-n"></span> official models. That counts <b>downloads</b>. This survey counts
+  what is still <b>installed on a server left open to the internet</b>. Those are different
+  acts, and the two populations are wildly different in size, so both sides are drawn as a
+  share of the same universe: of every pull of an official model, what fraction is this one,
+  against the same fraction of every official-model install we found. Only Ollama hosts are
+  counted anywhere on this page.</p>
+  <p class="note">The gap is the chart. A model far to the right of its download share is
+  one people leave running; far to the left, one they pull and move on from.</p>
+  <div class="card">
+    <div class="controls">
+      <button id="pulls-strict" aria-pressed="false">Exclude questionable</button>
+      <span class="spacer"></span>
+      <button id="pulls-bydl" aria-pressed="true">Rank by downloads</button>
+      <button id="pulls-bygap" aria-pressed="false">Rank by gap</button>
+    </div>
+    <div id="pulls"></div>
+    <div class="legend" id="pulls-legend"></div>
+    <p class="note" id="pulls-note"></p>
   </div>
 </section>
 <section>
@@ -424,7 +448,7 @@
   <p class="note"><b>Total</b> deduplicates a server seen by both.
   Model tags ending <code>-cloud</code> are dropped throughout, since those proxy to
   Ollama's hosted service and commit no weights, disk or GPU on the reporting machine. They
-  are 3.1% of installs but 32% of everything at 90B parameters and above.</p>
+  are 3.1% of installs but 33% of everything at 90B parameters and above.</p>
   <p class="note"><b>Collapse duplicates</b> also folds together groups of 50+ addresses reporting the same
   model list on the same day.</p>
   <div class="card">

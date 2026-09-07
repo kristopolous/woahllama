@@ -35,14 +35,15 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
     population(counts);
     vendorChart(vendors, counts);
     modelChart(models);
+    pullsChart(pulls);
     geoChart(geo);
     worldMap(world, mapd);
     bubbles(octets);
@@ -1601,3 +1602,126 @@ function buildNav() {
   spy();
 }
 buildNav();
+
+/* ============ downloads vs deployments: share against share =============== */
+/* ollama.com's pull counts and this survey measure two different acts, on
+   populations three orders of magnitude apart, so nothing can be read off the
+   raw counts. Normalising both to a share of the same universe - the official
+   library - makes them comparable: the axis is "fraction of all official-model
+   pulls" against "fraction of all official-model installs found".
+
+   A dumbbell rather than a scatter or a ratio bar. The ratio alone hides that
+   deepseek-r1 and gemma4 are nowhere near the same size of bet, and a scatter
+   buries the model names. Here both proportions are readable on one log axis
+   and the connector length is the disagreement. */
+const PULLS_N = 22;
+
+function pullsChart(P) {
+  const host = $('pulls');
+  $('pulls-n').textContent = P.n_models;
+  let strict = false, byGap = false;
+
+  const C_PULL = 'var(--series-7)', C_OBS = 'var(--series-3)';
+  const share = m => strict ? m.obs_share_clean : m.obs_share;
+  const count = m => strict ? m.servers_clean : m.servers;
+
+  const draw = () => {
+    // Rank within the official library by download share, then take the head:
+    // the tail is models with a handful of installs, where a share ratio is
+    // noise. "By gap" re-sorts that same head so the disagreement leads.
+    const pool = P.models.filter(m => m.pull_share > 0).slice(0, 60)
+      .filter(m => count(m) > 0);
+    const ratio = m => share(m) / m.pull_share;
+    let rows = pool.slice().sort((a, b) => b.pull_share - a.pull_share).slice(0, PULLS_N);
+    if (byGap) rows.sort((a, b) => ratio(b) - ratio(a));
+
+    const W = host.clientWidth || 1100;
+    const M = { t: 26, r: 24, b: 44, l: 132 };
+    const rowH = 24, ih = rows.length * rowH, H = M.t + ih + M.b;
+    const iw = W - M.l - M.r;
+
+    const vals = rows.flatMap(m => [m.pull_share, share(m)]).filter(v => v > 0);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const l0 = Math.floor(Math.log10(lo)), l1 = Math.ceil(Math.log10(hi));
+    const X = v => M.l + (Math.log10(Math.max(v, Math.pow(10, l0))) - l0) / (l1 - l0) * iw;
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (let e = l0; e <= l1; e++) {
+      for (const mant of [1, 2, 5]) {
+        const v = mant * Math.pow(10, e);
+        if (v < lo * 0.75 || v > hi * 1.4) continue;
+        grid.append(el('line', { x1: X(v), x2: X(v), y1: M.t, y2: M.t + ih }));
+        const p = v * 100;
+        axis.append(el('text', { x: X(v), y: M.t + ih + 18, 'text-anchor': 'middle' },
+          (p >= 1 ? p.toFixed(0) : p >= 0.1 ? p.toFixed(1) : p.toFixed(2)) + '%'));
+      }
+    }
+    svg.append(grid, axis);
+
+    rows.forEach((m, i) => {
+      const y = M.t + rowH * i + rowH / 2;
+      const xp = X(m.pull_share), xo = X(share(m));
+      const g = el('g');
+      g.append(el('line', {
+        x1: xp, x2: xo, y1: y, y2: y, 'stroke-width': 2.5, 'stroke-linecap': 'round',
+        stroke: xo > xp ? C_OBS : C_PULL, opacity: .42,
+      }));
+      g.append(el('circle', { cx: xp, cy: y, r: 4.5, fill: C_PULL }));
+      g.append(el('circle', { cx: xo, cy: y, r: 4.5, fill: C_OBS }));
+      axis.append(el('text', {
+        x: M.l - 12, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-primary)', style: 'font-size:12px',
+      }, m.name));
+
+      const r = ratio(m);
+      const hit = el('rect', { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: 'transparent' });
+      hit.addEventListener('mousemove', ev => showTip(
+        `<div class="d">${m.name}</div>
+         <table>
+          <tr><td>pulls</td><td class="n">${fmtInt(m.pulls)}</td></tr>
+          <tr><td>share of all pulls</td><td class="n">${(100 * m.pull_share).toFixed(2)}%</td></tr>
+          <tr><td>servers running it</td><td class="n">${fmtInt(count(m))}</td></tr>
+          <tr><td>share of all installs</td><td class="n">${(100 * share(m)).toFixed(2)}%</td></tr>
+          <tr><td>installed vs pulled</td><td class="n">${r >= 1 ? r.toFixed(1) + '× more' : (1 / r).toFixed(1) + '× less'}</td></tr>
+         </table>`, ev));
+      hit.addEventListener('mouseleave', hideTip);
+      g.append(hit);
+      svg.append(g);
+    });
+    axis.append(el('text', {
+      x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle',
+    }, 'share of the official-model total (log scale)'));
+    svg.append(axis);
+    host.replaceChildren(svg);
+
+    legend($('pulls-legend'), [
+      { name: 'Share of downloads (ollama.com)', color: C_PULL },
+      { name: 'Share of installs found running', color: C_OBS },
+    ]);
+
+    const up = rows.slice().sort((a, b) => ratio(b) - ratio(a));
+    const nm = m => `<b>${m.name}</b> ${ratio(m) >= 1 ? ratio(m).toFixed(1) + '× more' : (1 / ratio(m)).toFixed(1) + '× less'}`;
+    const tot = strict ? P.total_servers_clean : P.total_servers;
+    $('pulls-note').innerHTML =
+      `${fmtInt(P.total_pulls)} pulls against ${fmtInt(tot)} installs on
+       ${strict ? 'servers that pass Chapter 2’s tests' : 'every server we found'}.
+       Most left running relative to downloads: ${nm(up[0])}, ${nm(up[1])}, ${nm(up[2])}.
+       Least: ${nm(up[up.length - 1])}, ${nm(up[up.length - 2])}.
+       ${strict
+        ? `Excluding questionable machines removes ${(100 * (1 - P.total_servers_clean / P.total_servers)).toFixed(0)}% of
+           all installs. Both totals are shares of what is left, so a model can gain share here
+           while its server count falls — every count in this view is lower than the default one.`
+        : `The phantom catalogue of Chapter 2 is itself made of library models, so the
+           over-represented end of this chart is partly those machines. <b>Exclude questionable</b>
+           takes them out.`}
+       Downloads are cumulative since each model was published and count re-pulls and CI;
+       installs are a census of one moment. The gap is the question, not the answer.`;
+  };
+
+  pair($('pulls-bydl'), $('pulls-bygap'), null, null, a => { byGap = !a; draw(); });
+  const sb = $('pulls-strict');
+  sb.onclick = () => { strict = !strict; sb.setAttribute('aria-pressed', strict); draw(); };
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+}

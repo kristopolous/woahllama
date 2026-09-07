@@ -38,7 +38,22 @@ def main():
     if not files:
         print("  graflex/ daily surveys absent (private); skipping", file=sys.stderr)
         return
+    con = sqlite3.connect(DB); c = con.cursor()
+    c.executescript("""
+      CREATE TABLE IF NOT EXISTS daily_probe(
+          service TEXT, host TEXT, port INTEGER, day TEXT,
+          checked TEXT, url TEXT, models TEXT,
+          PRIMARY KEY(service, host, day));
+      CREATE INDEX IF NOT EXISTS idx_daily_day ON daily_probe(day);
+    """)
+    # Seed from what is already stored. The scanner cache that produces these
+    # files ages rows out: `4a8621dd9470.json` is a rolling snapshot overwritten
+    # in place, so a sighting captured last week may exist in no file today.
+    # Rebuilding the table from disk would silently delete it, so accumulate.
     best = {}   # (service, host:port, day) -> row, keeping the latest check
+    for row in c.execute("SELECT service,host,port,day,checked,url,models FROM daily_probe"):
+        best[(row[0], row[1], row[3])] = row
+    carried = len(best)
     for f in files:
         try:
             rows = json.load(open(f, encoding="utf-8"))
@@ -60,17 +75,10 @@ def main():
             if cur is None or ck > cur[4]:
                 best[k] = (svc, hp, port, day, ck, o.get("url") or "", models)
 
-    con = sqlite3.connect(DB); c = con.cursor()
-    c.executescript("""
-      DROP TABLE IF EXISTS daily_probe;
-      CREATE TABLE daily_probe(service TEXT, host TEXT, port INTEGER, day TEXT,
-                               checked TEXT, url TEXT, models TEXT,
-                               PRIMARY KEY(service, host, day));
-    """)
     c.executemany("INSERT OR REPLACE INTO daily_probe VALUES (?,?,?,?,?,?,?)", best.values())
-    c.execute("CREATE INDEX idx_daily_day ON daily_probe(day)")
     con.commit()
-    print(f"daily_probe: {len(files)} files -> {len(best)} dated sightings", file=sys.stderr)
+    print(f"daily_probe: {len(files)} files + {carried} already stored"
+          f" -> {len(best)} dated sightings ({len(best)-carried} new)", file=sys.stderr)
     for svc, n, hosts, d0, d1 in c.execute(
             "SELECT service, COUNT(*), COUNT(DISTINCT host), MIN(day), MAX(day)"
             " FROM daily_probe GROUP BY service ORDER BY 3 DESC"):
