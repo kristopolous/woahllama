@@ -191,6 +191,21 @@ repository's git history, which is what builds docs.ollama.com), against how oft
 those names actually appear in the wild. They do not match, and the file says so
 with counts rather than assertion.
 
+**The premium model names are a ransom note.** `build_campaigns.py` reads the
+`/api/show` sweep and settles what Chapter 2 left open. Models named `gpt-4o`,
+`claude-3-opus` and `gpt-4` are `tinyllama` with roughly 1.25 kB of extortion text
+appended, installed through an Ollama API that accepted writes without
+authentication. Ollama's own `parent_model` field says `tinyllama:latest` on 1,100
+instances, and the GGUF architecture matches the real `tinyllama` on 362 hosts
+that carry both. Three distinct payloads are present on 533 of 1,574 hosts, 104
+of them carrying more than one, so several unrelated parties are writing to the
+same machines. Only one asks for money. Its single Bitcoin address has received
+nothing, verified against two independent block explorers that must agree before
+the builder will publish a figure. The address is on the page on purpose, so that
+somebody who finds the note on their own server and searches for it can see the
+demand is a bluff. Nothing host-level is published, and `parent_model` paths are
+dropped entirely because they carry the operator's OS username.
+
 **The most recent two days are trimmed**, since a half-finished day of scanning
 reads as a real drop in every trend.
 

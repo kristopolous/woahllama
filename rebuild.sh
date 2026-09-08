@@ -54,6 +54,9 @@ python3 build_hoarding.py
 python3 build_hoarding_time.py
 # where the responder fleet is hosted + the negative results (needs fofa.db)
 python3 build_hosting.py || true
+# what the fake premium models are, and what the wallet earned (needs the
+# /api/show sweep; queries two block explorers, skips cleanly offline)
+python3 build_campaigns.py || true
 if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi

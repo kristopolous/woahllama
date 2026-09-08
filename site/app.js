@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting', 'campaigns', 'anomalies'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting, camps, anom]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -47,6 +47,8 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     lagChart(lag);
     waveChart(wave);
     hostingChart(hosting);
+    campaignsChart(camps);
+    anomaliesChart(anom);
     geoChart(geo);
     worldMap(world, mapd);
     bubbles(octets);
@@ -261,7 +263,7 @@ function vendorChart(vendors, counts) {
 
 /* ------------------------------------------------------------------ models */
 /* A base name pins one generation. gemma3 is superseded by gemma4, qwen3 by
-   qwen3.6 and 3.8, llama3 by the muse models — so tracking bases makes every
+   qwen3.6 and 3.8, llama3 by the muse models, so tracking bases makes every
    line decay toward zero as its successor arrives, which reads as people
    abandoning these models when the mass has only moved one name along. That is
    an artefact of the namespace growing, not a finding, so this chart tracks the
@@ -274,15 +276,15 @@ function vendorChart(vendors, counts) {
 function modelChart(models, keep) {
   // Default to the questionable-excluded series. Chapter 2's responder fleet
   // advertises a fixed catalogue whose members are real model names, so leaving
-  // those machines in puts Code Llama and openchat — two of the six phantom
-  // names — above Gemma and Mistral, which is a fact about the fleet, not about
+  // those machines in puts Code Llama and openchat, two of the six phantom
+  // names, above Gemma and Mistral, which is a fact about the fleet, not about
   // what anybody is running.
   const src = modelChart.loose ? models.fam_clean : (models.fam_strict || models.fam_clean);
   const names = Object.keys(src);
   const nd0 = src[names[0]].length;
   // Rank by the last month rather than by all-time peak. A lineage that was
   // big in 2025 and is gone now is not what the reader is looking at, and the
-  // peak ranking put the `hf.co/...` catch-all — which is not a lineage — into
+  // peak ranking put the `hf.co/...` catch-all, which is not a lineage, into
   // the default six.
   const recent = n => {
     const w = src[n].slice(Math.max(0, nd0 - 33), nd0 - 3);
@@ -339,14 +341,14 @@ function modelChart(models, keep) {
       .map(n => `<b>${n}</b> covers ${mem[n].slice(0, 4).join(', ')}`);
     note.innerHTML =
       `Each line is a model lineage, not a single release, so a generation handing over to
-       its successor stays inside one series${shown.length ? ` — ${shown.join('; ')}` : ''}.
+       its successor stays inside one series${shown.length ? `, ${shown.join('; ')}` : ''}.
        Tracking individual names instead would make every line fall toward zero as its
        replacement shipped, which is the namespace growing rather than anyone walking away.
        Share is of the tracked lineages that day. Embedding models and the tiny demo models
        are excluded, as are Chapter 2's scratch and closed-weights names.
        ${modelChart.loose
         ? `Chapter 2's flagged machines are <b>included</b> here, which is why Code Llama and
-           openchat rank where they do — both are names in the phantom catalogue, and the
+           openchat rank where they do, both are names in the phantom catalogue, and the
            exclusion removes 59% and 63% of their hosts respectively.`
         : `Machines flagged by Chapter 2's tests are excluded, since a host that answers from
            a fixed script is not running a lineage. That removes about 40% of hosts overall
@@ -604,7 +606,7 @@ function worldMap(world, M) {
     return s;
   };
 
-  // metric on a record (country or city — identical shape)
+  // metric on a record (country or city, identical shape)
   const metric = (c, m) => {
     if (!c) return null;
     const srv = win(c.srv, m);
@@ -1391,7 +1393,7 @@ function addZoom(host, svg, W, H) {
    many hosts run it, up is the average library size of those hosts. The single
    snapshot could not distinguish a model that has always sat on minimal boxes
    from one that was recently adopted by a fleet of identical ones, and that
-   distinction is the whole question next to Chapter 2's waves — so this runs
+   distinction is the whole question next to Chapter 2's waves, so this runs
    month by month, with the axes fixed across every frame so movement is real. */
 function hoardingChart(H, vendors, T) {
   const host = $('hoarding');
@@ -1502,7 +1504,7 @@ function hoardingChart(H, vendors, T) {
              library <b>${f.mean_lib}</b> models.`) +
         ` ${rows.length} models on at least ${T.min_hosts} hosts; average library
           <b>${f.mean_lib}</b>. Axes are fixed across the aggregate and every month, so
-          a dot moving is the model moving. Built from survey.db — Ollama only, and a
+          a dot moving is the model moving. Built from survey.db, Ollama only, and a
           different population from the single-snapshot version this replaces.`;
     }
   };
@@ -1822,7 +1824,7 @@ function pullsChart(P) {
         `<div class="d">${m.name}</div>
          <table>
           <tr><td>pulls</td><td class="n">${fmtInt(m.pulls)}</td></tr>
-          <tr><td>published</td><td class="n">${m.updated ? m.updated.replace(/ \d+:.*$/, '') : '—'}</td></tr>
+          <tr><td>published</td><td class="n">${m.updated ? m.updated.replace(/ \d+:.*$/, '') : ', '}</td></tr>
           <tr><td>share of downloads</td><td class="n">${(100 * dl(m)).toFixed(2)}%</td></tr>
           <tr><td>servers running it</td><td class="n">${fmtInt(count(m))}</td></tr>
           <tr><td>share of all installs</td><td class="n">${(100 * share(m)).toFixed(2)}%</td></tr>
@@ -1856,7 +1858,7 @@ function pullsChart(P) {
        ${strict
         ? `Excluding questionable machines removes ${(100 * (1 - P.total_servers_clean / P.total_servers)).toFixed(0)}% of
            all installs. Both totals are shares of what is left, so a model can gain share here
-           while its server count falls — every count in this view is lower than the default one.`
+           while its server count falls, every count in this view is lower than the default one.`
         : `The phantom catalogue of Chapter 2 is itself made of library models, so the
            over-represented end of this chart is partly those machines. <b>Exclude questionable</b>
            takes them out.`}
@@ -1864,7 +1866,7 @@ function pullsChart(P) {
         ? `Both sides are shares of this cohort only. A pull count never goes down, so over
            the whole library the oldest models always win; restricting to recent ones
            compares them with each other. The newest releases sit left of their download
-           share because deployment lags publication — they have been pulled, not yet left
+           share because deployment lags publication, they have been pulled, not yet left
            running anywhere we can see.`
         : `Downloads are a non-expiring accumulator running since each model was published,
            so age alone lifts a model up this list and nothing recent can rank.
@@ -1968,7 +1970,7 @@ function lagChart(L) {
       svg.append(g);
     });
     axis.append(el('text', { x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle' },
-      'release date of the Ollama daemon serving it — circle size is hosts'));
+      'release date of the Ollama daemon serving it, circle size is hosts'));
     svg.append(axis);
     host.replaceChildren(svg);
 
@@ -1994,20 +1996,20 @@ function lagChart(L) {
     $('lag-note').innerHTML =
       `Reading a row left to right: the diamond is when the model was released, the circles
        are the vintages of Ollama found running it. Most rows sit mostly to the right of
-       their diamond — the daemon is newer than what it serves, which is what you get when
+       their diamond, the daemon is newer than what it serves, which is what you get when
        a machine is built once and left alone. Across the probe the median host runs a
        daemon released <b>${Math.abs(L.median_lag)} days after</b> the newest model on it.
        <b>${worst.name}</b> is the exception worth looking at:
        ${(100 * worst.older12 / worst.hosts).toFixed(0)}% of its ${fmtInt(worst.hosts)} hosts
        run a daemon released more than a year before the model existed${peers.length
         ? `, against ${peers.map(r => `${r.name} at
-           ${(100 * r.older12 / r.hosts).toFixed(0)}%`).join(' and ')} — released within
+           ${(100 * r.older12 / r.hosts).toFixed(0)}%`).join(' and ')}, released within
            weeks of it, on comparable numbers of machines` : ''}.
        Across the whole probe ${fmtInt(L.n_notable)} hosts
        (${(100 * L.notable_share).toFixed(0)}%) serve something released twelve months or
        more after their daemon shipped; the extreme is v${top.version} from ${top.daemon}
        running ${top.newest_model} from ${top.newest_model_date}.
-       That tail is <i>not</i> the responder fleet of Chapter 2 — it carries flagged
+       That tail is <i>not</i> the responder fleet of Chapter 2, it carries flagged
        machines at about the same rate as the rest of the probe.
        Release dates come from
        <a href="https://artificialanalysis.ai/leaderboards/models">Artificial Analysis</a>,
@@ -2063,7 +2065,7 @@ function waveChart(W) {
     $('wave-note').innerHTML =
       `Nothing before April 2025. The first wave peaks in <b>${fmt(peak1)}</b> at
        <b>${avg(peak1).toFixed(1)}%</b> of everything visible, falls away to
-       <b>${avg(trough).toFixed(1)}%</b> by ${fmt(trough)} — effectively gone — and then
+       <b>${avg(trough).toFixed(1)}%</b> by ${fmt(trough)}, effectively gone, and then
        climbs every month since, reaching <b>${avg(last).toFixed(1)}%</b> in ${fmt(last)}.
        The second wave is already larger than the first and is still going up.
        Smoothed over 15 days; the final few days are thin and move around.
@@ -2148,15 +2150,15 @@ function hostingChart(D) {
        <b>${fmtInt(D.expected_if_even)}</b> of them on other providers. The daily live
        probe, whose hosts are mostly OVH, Hetzner, Alibaba and small providers, finds none
        either. This is what FOFA saw, and FOFA's Ollama population is AWS-heavy to begin
-       with — but an AWS-heavy sample does not produce a count of exactly zero elsewhere.`;
+       with, but an AWS-heavy sample does not produce a count of exactly zero elsewhere.`;
 
     const ex = D.doc_examples && D.doc_examples.examples;
     const nc = D.name_counts, b = D.alias_blob;
     const cp = ex ? Object.entries(ex).sort((a, c) => c[1] - a[1]) : [];
     $('hosting-neg').innerHTML = !ex ? '' :
       `<b>The documentation does not name these models.</b> Every version of Ollama's
-       compatibility docs that ever shipped — read out of the repository's own git history,
-       which is what builds docs.ollama.com — uses one of
+       compatibility docs that ever shipped, read out of the repository's own git history,
+       which is what builds docs.ollama.com, uses one of
        ${cp.map(([c, n]) => `<code>${c}</code> (${n}×)`).join(', ')}.
        <code>gpt-4o</code> and <code>claude-3-opus</code> appear in none of them.
        <br><br>
@@ -2174,12 +2176,179 @@ function hostingChart(D) {
        <br><br>
        <b>The blob underneath is wrong for the theory.</b> ${b ? `All
        ${fmtInt(b.rows)} premium-named installs resolve to the same
-       <b>${b.params} ${b.quant} ${b.family}</b> blob — the smallest common model there
-       is — on machines that are simultaneously serving 27B and 36B models. Someone
+       <b>${b.params} ${b.quant} ${b.family}</b> blob, the smallest common model there
+       is, on machines that are simultaneously serving 27B and 36B models. Someone
        aliasing a model so their editor works would alias the good one.` : ''}
        <br><br>
        <b>No packaged image accounts for it either.</b> A search of Docker Hub for images
        that bake these names found nothing.`;
+  };
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+}
+
+/* ===================== what the premium models really are ================== */
+/* Three parts. The evidence table answers "is it tinyllama", the bar answers
+   "how many payloads and how far do they reach", and the wallet line answers
+   the only question that decides whether any of it worked. */
+function campaignsChart(C) {
+  if (!C || !$('campaigns')) return;
+  const fmtSats = s => s === 0 ? '0' : (s / 1e8).toFixed(8) + ' BTC';
+
+  // ---- evidence -----------------------------------------------------------
+  const a = C.evidence.arch || {};
+  const ev = [
+    ['Ollama&rsquo;s own <code>parent_model</code> field',
+     C.evidence.parent_model.map(([k, n]) => `<code>${k}</code> on ${fmtInt(n)}`).join(', ')],
+    ['Parameter count', `${fmtInt(a['general.parameter_count'] || 0)} (tinyllama is 1.1B)`],
+    ['Layers / embedding / feed-forward',
+     `${a['llama.block_count']} / ${a['llama.embedding_length']} / ${a['llama.feed_forward_length']}`],
+    ['Attention heads (query / key-value)',
+     `${a['llama.attention.head_count']} / ${a['llama.attention.head_count_kv']}`],
+    ['Context length', fmtInt(a['llama.context_length'] || 0)],
+    ['Quantisation', `GGUF file_type ${a['general.file_type']}, which is Q4_0`],
+    ['Instances sharing this exact architecture', fmtInt(C.evidence.arch_instances)],
+    ['Real <code>tinyllama</code> installs with the identical architecture',
+     fmtInt(C.evidence.arch_matches_real_tinyllama)],
+    ['Hosts carrying both, architectures matching',
+     `${fmtInt(C.evidence.hosts_carrying_both)} hosts`],
+  ];
+  $('camp-evidence').innerHTML =
+    `<table class="ev"><tbody>${ev.map(([k, v]) =>
+      `<tr><td>${k}</td><td class="n">${v}</td></tr>`).join('')}</tbody></table>
+     <p class="note">The servers are asked directly, with the same API call anyone can
+     make. Ollama reports what a model was copied from, and the model file itself carries
+     the architecture it was built with. Both say tinyllama, on every instance.</p>`;
+
+  // ---- payload reach ------------------------------------------------------
+  const draw = () => {
+    const host = $('campaigns');
+    const rows = C.campaigns.slice().sort((x, y) => y.hosts - x.hosts);
+    const W = host.clientWidth || 1100;
+    const M = { t: 18, r: 30, b: 44, l: 190 };
+    const rowH = 54, ih = rows.length * rowH, H = M.t + ih + M.b;
+    const iw = W - M.l - M.r;
+    const max = Math.max(...rows.map(r => r.hosts), 1);
+    const X = v => (v / max) * iw;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (const t of niceTicks(max, 5)) {
+      grid.append(el('line', { x1: M.l + X(t), x2: M.l + X(t), y1: M.t, y2: M.t + ih }));
+      axis.append(el('text', { x: M.l + X(t), y: M.t + ih + 18, 'text-anchor': 'middle' },
+        fmtInt(t)));
+    }
+    svg.append(grid, axis);
+    rows.forEach((r, i) => {
+      const y = M.t + rowH * i + 10, h = rowH - 26;
+      const col = r.asks_for_money ? 'var(--series-8)' : 'var(--series-4)';
+      const rect = el('rect', { x: M.l, y, width: Math.max(1, X(r.hosts)), height: h,
+        rx: 3, fill: col, 'fill-opacity': .85 });
+      rect.addEventListener('mousemove', ev2 => showTip(
+        `<div class="d">${r.label}</div>
+         <table>
+          <tr><td>hosts</td><td class="n">${fmtInt(r.hosts)}</td></tr>
+          <tr><td>model instances</td><td class="n">${fmtInt(r.instances)}</td></tr>
+          <tr><td>of all probed hosts</td><td class="n">${r.share_probed}%</td></tr>
+          <tr><td>carried on</td><td class="n">${r.names.map(n => n[0]).join(', ')}</td></tr>
+         </table>`, ev2));
+      rect.addEventListener('mouseleave', hideTip);
+      svg.append(rect);
+      axis.append(el('text', { x: M.l - 14, y: y + h / 2 + 4, 'text-anchor': 'end',
+        fill: 'var(--text-primary)', style: 'font-size:12.5px' }, r.label));
+      axis.append(el('text', { x: M.l + X(r.hosts) + 8, y: y + h / 2 + 4,
+        fill: 'var(--text-secondary)', style: 'font-size:11px' },
+        `${fmtInt(r.hosts)} hosts, on ${r.names.map(n => n[0]).slice(0, 3).join(', ')}`));
+    });
+    axis.append(el('text', { x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle' },
+      `hosts, of ${fmtInt(C.hosts_answered)} that answered`));
+    svg.append(axis);
+    host.replaceChildren(svg);
+    legend($('campaigns-legend'), [
+      { name: 'Asks for money', color: 'var(--series-8)' },
+      { name: 'Asks for nothing', color: 'var(--series-4)' },
+    ]);
+    $('campaigns-note').innerHTML =
+      `${fmtInt(C.hosts_any)} of ${fmtInt(C.hosts_answered)} hosts that answered carry at
+       least one of these, and <b>${fmtInt(C.hosts_multi)}</b> carry more than one, which
+       means several unrelated parties are writing to the same machines. Only the first
+       asks for anything. The other two install a phrase and wait to see it echoed back,
+       which is how you confirm you can write to a server without doing anything to it.`;
+  };
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+
+  // ---- the wallet ---------------------------------------------------------
+  const w = C.wallet;
+  $('wallet-note').innerHTML = !w
+    ? 'The wallet balance could not be verified at build time.'
+    : `One Bitcoin address appears across the whole fleet, on
+       ${fmtInt(C.campaigns.find(c => c.key === 'ransom').instances)} model instances
+       spread over ${fmtInt(C.campaigns.find(c => c.key === 'ransom').hosts)} servers.
+       There is no second address and no per-victim address.
+       <br><br>
+       <b>It has received ${fmtSats(w.received_sats)}, in ${w.tx_count} transactions.</b>
+       Checked against ${w.checks.map(c => `<a href="https://${c.source}/address/${w.address}">${c.source}</a>`).join(' and ')},
+       which agree. You can check it yourself rather than take this page's word:
+       <code>${w.address}</code>
+       <br><br>
+       The campaign has been running since at least early 2025. It has earned nothing.
+       Part of the reason is the delivery: the note only appears if the operator runs a
+       model they never installed, so on most of these machines nobody has ever seen it.`;
+}
+
+/* ============ how much of it looks wrong, before any explanation =========== */
+/* Chapter 2 opens on scale, not on a theory. One bar per check, plus the
+   deduplicated total, because a server can fail more than one. */
+function anomaliesChart(A) {
+  const host = $('anomalies');
+  if (!host || !A) return;
+
+  const draw = () => {
+    const rows = A.checks.slice().sort((a, b) => b.n - a.n);
+    const W = host.clientWidth || 1100;
+    const M = { t: 18, r: 40, b: 44, l: 300 };
+    const rowH = 48, ih = rows.length * rowH, H = M.t + ih + M.b;
+    const iw = W - M.l - M.r;
+    const max = A.with_catalogue;
+    const X = v => (v / max) * iw;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (const t of niceTicks(max, 5)) {
+      grid.append(el('line', { x1: M.l + X(t), x2: M.l + X(t), y1: M.t, y2: M.t + ih }));
+      axis.append(el('text', { x: M.l + X(t), y: M.t + ih + 18, 'text-anchor': 'middle' },
+        t >= 1000 ? (t / 1000) + 'k' : t));
+    }
+    svg.append(grid, axis);
+    rows.forEach((r, i) => {
+      const y = M.t + rowH * i + 8, h = rowH - 22;
+      const rect = el('rect', { x: M.l, y, width: Math.max(2, X(r.n)), height: h, rx: 3,
+        fill: 'var(--series-8)', 'fill-opacity': .85 });
+      rect.addEventListener('mousemove', ev => showTip(
+        `<div class="d">${r.label}</div>
+         <table><tr><td>servers</td><td class="n">${fmtInt(r.n)}</td></tr>
+         <tr><td>of those with a catalogue</td><td class="n">${(100*r.n/max).toFixed(1)}%</td></tr></table>`, ev));
+      rect.addEventListener('mouseleave', hideTip);
+      svg.append(rect);
+      // wrap the long check descriptions across two lines
+      const words = r.label.split(' ');
+      const half = Math.ceil(words.length / 2);
+      const lines = words.length > 6 ? [words.slice(0, half).join(' '), words.slice(half).join(' ')] : [r.label];
+      lines.forEach((ln, k) => axis.append(el('text', {
+        x: M.l - 14, y: y + h / 2 + 4 + (k - (lines.length - 1) / 2) * 14,
+        'text-anchor': 'end', fill: 'var(--text-primary)', style: 'font-size:12px' }, ln)));
+      axis.append(el('text', { x: M.l + X(r.n) + 8, y: y + h / 2 + 4,
+        fill: 'var(--text-secondary)', style: 'font-size:11px' }, fmtInt(r.n)));
+    });
+    axis.append(el('text', { x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle' },
+      `servers, of ${fmtInt(A.with_catalogue)} that report a model list`));
+    svg.append(axis);
+    host.replaceChildren(svg);
+    $('anomalies-note').innerHTML =
+      `<b>${fmtInt(A.flagged)} of ${fmtInt(A.with_catalogue)}</b> servers that report a
+       model list, ${(100 * A.flagged / A.with_catalogue).toFixed(0)}%, fail at least one
+       of these. A server can fail more than one, so the bars add up to more than the
+       total. One check accounts for nearly all of it. Another, far smaller, is a
+       separate matter that the two halves of this chapter take up in turn.`;
   };
   draw();
   addEventListener('resize', debounce(draw, 150));

@@ -101,6 +101,31 @@ def main():
     # scanning that month. As a share of everything visible on the same day the
     # coverage cancels, and what is left is how much of the exposed Ollama
     # population is answering from a script.
+    # ---- 1c. the four checks, as a headline count ---------------------------
+    # Chapter 2 opens on the size of the problem before any explanation: how
+    # many servers with a catalogue fail at least one of Chapter 2's tests, and
+    # which test. A server can fail several, so the parts exceed the whole.
+    q_tot = con.execute("SELECT COUNT(*) FROM questionable_server").fetchone()[0]
+    q_flags = con.execute(
+        "SELECT SUM(phantom), SUM(impossible), SUM(placeholder), SUM(invented)"
+        " FROM questionable_server").fetchone()
+    with_cat = con.execute(
+        "SELECT COUNT(DISTINCT server_id) FROM server_model").fetchone()[0]
+    write(OUT/"anomalies.json", {
+        "with_catalogue": with_cat,
+        "flagged": q_tot,
+        "checks": [
+            {"key": "phantom", "label": "Catalogue is the same fixed list as thousands "
+             "of unrelated machines", "n": q_flags[0]},
+            {"key": "placeholder", "label": "Models are scratch or probe names",
+             "n": q_flags[2]},
+            {"key": "impossible", "label": "Models are commercial products whose weights "
+             "were never released", "n": q_flags[1]},
+            {"key": "invented", "label": "Reported file size disagrees with the real one",
+             "n": q_flags[3]},
+        ],
+    })
+
     phantom_ids = {r[0] for r in con.execute(
         "SELECT server_id FROM questionable_server WHERE phantom=1")}
     ph_day = [sum(1 for x in u if x in phantom_ids) for u in union]
