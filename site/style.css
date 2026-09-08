@@ -303,3 +303,21 @@ table.ev td { padding: 7px 4px; border-bottom: 1px solid var(--surface-2);
 table.ev td.n { text-align: right; color: var(--text-primary);
                 font-variant-numeric: tabular-nums; white-space: normal; }
 table.ev tr:last-child td { border-bottom: 0; }
+
+/* Primary source: the attacker's own text. Monospace, scrollable rather than
+   wrapping mid-address, and always inserted as textContent. */
+pre#note-modelfile { background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; margin: 0; overflow-x: auto;
+  font: 12.5px/1.6 ui-monospace, Menlo, monospace; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word; }
+}
+
+/* Modelfile colouring. Every token is a span with textContent set, so nothing
+   in the attacker's file can become markup. */
+.mf-k      { color: var(--series-1); font-weight: 600; }
+.mf-role   { color: var(--series-4); font-weight: 600; }
+.mf-param  { color: var(--series-4); }
+.mf-str    { color: var(--text-secondary); }
+.mf-tpl    { color: var(--series-3); }
+.mf-tok    { color: var(--series-7); }
+.mf-redact { color: var(--text-muted); font-style: italic; }

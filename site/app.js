@@ -2195,6 +2195,30 @@ function campaignsChart(C) {
   if (!C || !$('campaigns')) return;
   const fmtSats = s => s === 0 ? '0' : (s / 1e8).toFixed(8) + ' BTC';
 
+  // ---- the note itself ----------------------------------------------------
+  // textContent, never innerHTML: this string was written by somebody who
+  // compromised a server, and it goes on the page as text or not at all.
+  if (C.modelfile && $('note-modelfile')) {
+    $('note-modelfile').replaceChildren(highlightModelfile(C.modelfile));
+    $('modelfile-note').innerHTML =
+      `The model's stored definition, returned verbatim by <code>/api/show</code>. Every
+       line of it was written by whoever installed it. <code>FROM</code> points at the
+       tinyllama blob already on the machine, so nothing was downloaded.
+       <code>SYSTEM</code> is the ransom note, and it is byte-identical on all
+       ${fmtInt(C.campaigns.find(c => c.key === 'ransom').instances)} instances we found,
+       which makes this one file copied rather than
+       ${fmtInt(C.campaigns.find(c => c.key === 'ransom').hosts)} people typing.
+       <br><br>
+       The <code>MESSAGE</code> lines are the part worth reading twice. A Modelfile can
+       preload a conversation, and the author wrote both halves of this one: the question,
+       and the model's answer promising to comply. So the model has already been asked
+       whether it will repeat the demand and has already said <b>CONFIRMED</b>, before
+       anyone connects to it. Ask it anything and it carries on from there.
+       <br><br>
+       The blob path on the <code>FROM</code> line is removed here, because on many of
+       these hosts it contains the operator's account name.`;
+  }
+
   // ---- evidence -----------------------------------------------------------
   const a = C.evidence.arch || {};
   const ev = [
@@ -2352,4 +2376,81 @@ function anomaliesChart(A) {
   };
   draw();
   addEventListener('resize', debounce(draw, 150));
+}
+
+/* ---------------------------------------------- Modelfile syntax colouring */
+/* Builds DOM nodes and sets textContent on each one. This string was written by
+   somebody who compromised a server, so it never goes near innerHTML, and the
+   highlighter must not be able to turn it into markup no matter what it says.
+
+   Modelfile is a small grammar: a directive at the start of a line, then either
+   a bare word or a double-quoted string that may run over many lines. Inside a
+   string, Go template placeholders and the chat special tokens get their own
+   colour, because those are what make the file legible as a chat model. */
+const MF_DIRECTIVE = /^(FROM|TEMPLATE|SYSTEM|PARAMETER|MESSAGE|ADAPTER|LICENSE)\b/;
+const MF_INSTRING = /(\{\{[^}]*\}\})|(<\|[a-z_]+\|>)|(<\/s>)/g;
+
+function highlightModelfile(src) {
+  const frag = document.createDocumentFragment();
+  const put = (text, cls) => {
+    if (!text) return;
+    if (!cls) return void frag.append(document.createTextNode(text));
+    const sp = document.createElement('span');
+    sp.className = cls;
+    sp.textContent = text;              // never innerHTML
+    frag.append(sp);
+  };
+  // colour the template placeholders and chat tokens inside a string body
+  const putString = body => {
+    let last = 0;
+    for (const m of body.matchAll(MF_INSTRING)) {
+      put(body.slice(last, m.index), 'mf-str');
+      put(m[0], m[1] ? 'mf-tpl' : 'mf-tok');
+      last = m.index + m[0].length;
+    }
+    put(body.slice(last), 'mf-str');
+  };
+
+  let i = 0, atLineStart = true;
+  while (i < src.length) {
+    if (atLineStart) {
+      const rest = src.slice(i);
+      const d = rest.match(MF_DIRECTIVE);
+      if (d) {
+        put(d[1], 'mf-k');
+        i += d[1].length;
+        // MESSAGE takes a role; PARAMETER takes a name
+        const after = src.slice(i).match(/^[ \t]+([a-z_]+)/);
+        if (after && (d[1] === 'MESSAGE' || d[1] === 'PARAMETER')) {
+          put(src.slice(i, i + after[0].length - after[1].length), null);
+          put(after[1], d[1] === 'MESSAGE' ? 'mf-role' : 'mf-param');
+          i += after[0].length;
+        }
+        atLineStart = false;
+        continue;
+      }
+      atLineStart = false;
+    }
+    const ch = src[i];
+    if (ch === '"') {                       // a quoted value, possibly multi-line
+      const end = src.indexOf('"', i + 1);
+      const stop = end === -1 ? src.length : end + 1;
+      put('"', 'mf-str');
+      putString(src.slice(i + 1, stop - 1));
+      if (end !== -1) put('"', 'mf-str');
+      i = stop;
+      continue;
+    }
+    if (ch === '<' && src.startsWith('<local blob', i)) {
+      const end = src.indexOf('>', i);
+      put(src.slice(i, end + 1), 'mf-redact');
+      i = end + 1;
+      continue;
+    }
+    if (ch === '\n') atLineStart = true;
+    // an unquoted tail: MESSAGE assistant CONFIRMED... runs to end of line
+    put(ch, null);
+    i++;
+  }
+  return frag;
 }

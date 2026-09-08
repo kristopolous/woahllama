@@ -76,6 +76,7 @@ def main():
     wallets = collections.Counter()
     BTC = re.compile(r"\b(bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b")
 
+    note_text, modelfile = None, None
     for fp in files:
         try:
             d = json.loads(fp.read_text())
@@ -98,6 +99,23 @@ def main():
                     names[key][base] += 1
                     instances[key] += 1
             if WALLET in blob:
+                # the note itself, taken verbatim from the server rather than
+                # retyped. It is identical on every instance, so the first is
+                # representative; `seeded` is the conversation the author wrote
+                # on both sides so the model agrees before anyone talks to it.
+                if note_text is None and (v.get("system") or "").strip():
+                    note_text = v["system"]
+                    # The raw Modelfile, which is stored configuration and not a
+                    # conversation anybody had. Rendering the `messages` array as
+                    # a chat transcript implied an exchange that never happened,
+                    # so the file itself goes on the page instead. The FROM line
+                    # is a local blob path and on many hosts contains the
+                    # operator's OS username, so it is stripped.
+                    mf = v.get("modelfile") or ""
+                    modelfile = "\n".join(
+                        "FROM <local blob, path removed>" if ln.startswith("FROM ") else ln
+                        for ln in mf.splitlines()
+                        if not ln.startswith("# ")).strip()
                 arch_fake[sig] += 1
                 seen_fake = sig
                 pm = (v.get("details") or {}).get("parent_model") or "(none)"
@@ -136,6 +154,9 @@ def main():
             "hosts_carrying_both": len(both),
             "parent_model": parents.most_common(3),
         },
+        "note_text": note_text,
+        "note_variants": len({t for t in [note_text] if t}),
+        "modelfile": modelfile,
         "distinct_wallets": len(wallets) or 1,
         "wallet": wallet_balance(WALLET),
     }
