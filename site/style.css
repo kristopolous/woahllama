@@ -95,6 +95,13 @@ section { margin: 44px 0 0; }
 /* Cards are normally separated by the prose between them. Where several stack
    directly, as in 2.2, they need their own gap or they read as one panel. */
 .card + .card { margin-top: 20px; }
+/* .note carries only a bottom margin, so prose sits flush against whatever is
+   above it: the card's border when it follows a card, or the chart, legend or
+   player when it is inside one. Adjacent sibling rather than general sibling,
+   since `~` would also push apart consecutive paragraphs that already space
+   themselves. */
+.card + p, .card + .legend { margin-top: 16px; }
+.card > * + p { margin-top: 14px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
   margin-bottom: 14px; }
 button, select {

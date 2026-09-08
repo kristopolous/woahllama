@@ -318,56 +318,62 @@
 <div class="chapter">
   <div class="chapter-num">Chapter 2</div>
   <h2 class="chapter-title">Unexpected behavior</h2>
-  <p class="chapter-lede">Not everything answering as Ollama is a server somebody set up
-  and forgot. A large share of what the scanners find behaves in ways an ordinary
-  installation does not, and it shows up first as statistics rather than as anything
-  anyone noticed.</p>
-  <p class="chapter-lede">This chapter starts with the counts, separates the anomalies into
-  the two kinds they fall into, and then takes each kind in turn.</p>
+  <p class="chapter-lede">Scan for long enough and you start to distrust your own results.
+  We went looking for people running Ollama on the open internet, and a large fraction of
+  what came back does not behave like anybody running anything.</p>
+  <p class="chapter-lede">Nobody reported this. It turned up as arithmetic that would not
+  sit still. So: here are the counts, here are the two separate things the counts turn out
+  to be, and then each one in turn. One of them we can take apart completely. The other has
+  been sitting there for eighteen months and we still do not know what it is.</p>
 </div>
 <section>
   <h2>Something is wrong with a lot of these</h2>
-  <p class="note">Before any explanation, the size of it. Across the servers with a model
-  list at all, a large minority fail at least one of four checks that a normal installation
-  passes: the catalogue is a fixed list repeated verbatim across thousands of unrelated
-  machines, the models are scratch or probe names, the models are commercial products whose
-  weights were never released, or the reported file size disagrees with the real one.</p>
+  <p class="note">Start with the size of it, before anybody tries to explain anything.
+  Take every server that reported a model list and run four checks a normal install passes
+  without thinking. Is the catalogue a fixed list turning up word for word on thousands of
+  machines that have never met? Are the models named like scratch files? Are they commercial
+  products whose weights were never released to anyone? Does the file size the server
+  reports match the file that actually exists?</p>
   <div class="card">
     <div id="anomalies"></div>
     <p class="note" id="anomalies-note"></p>
   </div>
-  <p class="note">These are counts of things that do not add up, not an accusation about
-  any particular machine. Every chart in Chapter 1 offers a way to exclude them, and the
-  rest of this chapter is about what they turn out to be.</p>
+  <p class="note">That is a lot of servers failing a very low bar. None of it is an
+  accusation about any particular machine, and some of it is surely somebody testing
+  something on a Tuesday. Every chart in Chapter 1 lets you throw these out and watch what
+  happens. What is left over is the question of what they are, which is the rest of this
+  chapter.</p>
 </section>
 <section>
   <h2>Two kinds of anomaly</h2>
-  <p class="note">They are not one phenomenon. Sorting by what the servers actually
-  advertise splits them cleanly in two, and the two behave nothing alike.</p>
-  <p class="note"><b>The first kind is old models on servers that are not really servers.</b>
-  A fixed pool of unremarkable models from 2023 and 2024, the same handful everywhere:
+  <p class="note">The first useful thing we found is that this is not one phenomenon. Sort
+  the flagged machines by what they actually advertise and they fall into two piles with
+  almost nothing to do with each other.</p>
+  <p class="note"><b>Pile one: old models, on servers that are not servers.</b>
+  A frozen pool of unremarkable models from 2023 and 2024, the same short list everywhere:
   <code>llama2:latest</code>, <code>llama3:latest</code>, <code>openchat:7b</code>,
   <code>codellama:13b</code>, <code>qwen2.5:1.5b</code>. Sizes constant to the byte across
-  machines that have never met. Version strings from a small rotating set. Ask one to hold
-  a conversation and what comes back is not a language model. These are the bulk of the
-  anomalies, and they arrive and leave in waves.</p>
-  <p class="note"><b>The second kind is commercial models that cannot exist.</b> Servers
-  advertising <code>gpt-4o</code>, <code>claude-3-opus</code> and <code>gpt-4</code>.
-  Neither OpenAI nor Anthropic has released those weights, so whatever is sitting under
-  those names is something else wearing them. There are far fewer of these, and they sit on
-  machines that are otherwise entirely real, serving working models alongside.</p>
-  <p class="note">They share almost nothing beyond both being wrong. Different models,
-  different hosts, different behaviour, different scale. The rest of the chapter takes them
-  in that order.</p>
+  machines with no connection to each other. Version strings drawn from a small rotating
+  set. Ask one to hold a conversation and whatever answers is not a language model. This is
+  the bulk of it, and it comes and goes in waves.</p>
+  <p class="note"><b>Pile two: commercial models that cannot exist.</b> Servers offering
+  <code>gpt-4o</code>, <code>claude-3-opus</code> and <code>gpt-4</code>. Neither OpenAI nor
+  Anthropic has ever released those weights, to anyone, so whatever sits under those names
+  is something else wearing the label. Far fewer of these, and here is the odd part: they
+  are on ordinary working servers, serving real models quite happily alongside.</p>
+  <p class="note">Different models, different machines, different behaviour, different
+  scale. The only thing the two piles share is that both are wrong. We take them in that
+  order.</p>
 </section>
 
 <div class="chapter">
   <div class="chapter-num">Chapter 2.1</div>
   <h2 class="chapter-title">The servers that are not servers</h2>
-  <p class="chapter-lede">The larger kind, and the one still open. Hundreds of hosts that
-  answer the Ollama API from what appears to be a script: one frozen model list, identical
-  sizes, rotating version strings, and replies assembled from a small phrase bank. What
-  they are for is not established here.</p>
+  <p class="chapter-lede">This is the big pile, and the one we cannot crack. Hundreds of
+  hosts answering the Ollama API from what is very obviously a script: one frozen model
+  list, identical file sizes, version strings off a wheel, and chat replies stitched
+  together out of a phrase bank. Everything below is what they do. Why anybody is doing it
+  is a question we are going to fail to answer, at length.</p>
 </div>
 <section>
   <h2>Hundreds of hosts answering as Ollama</h2>
@@ -469,48 +475,6 @@
     <div class="legend" id="invented-legend"></div>
   </div>
 
-  <div class="card" style="margin-top:16px">
-    <h2 style="font-size:15px">Mystery #2: Servers wearing models they cannot run</h2>
-    <p class="note">Probing live hosts directly turned up a separate oddity. Hundreds of
-    real, working Ollama boxes advertise a closed-weights model that cannot exist on
-    Ollama: <code>gpt-4</code>, <code>gpt-4o</code>, <code>claude-3-opus</code>, and newer
-    names like <code>claude-opus-4.8</code>, <code>gpt-5.5</code> and
-    <code>gemini-3.5-flash</code>. Of the live hosts we reached, 726 carried at least one
-    of these.</p>
-    <p class="note">They never appear alone. Every one of those 726 also runs genuine open
-    models, usually Qwen, DeepSeek, or an abliterated Huihui build, so these are not empty
-    decoys but real servers with fake names planted among the real ones. And the fake names
-    carry no <code>hf.co/</code> prefix the way the genuine models on the same boxes do, so
-    they are made on the machine with <code>ollama cp</code> or a Modelfile, not pulled from
-    Hugging Face. There is no upstream repo claiming to be GPT-4. It is local theatre.</p>
-    <p class="note">Two very different levels of effort sit behind it. On 708 hosts the
-    premium name points at a real but tiny 638&nbsp;MB, 1.1B, Q4_0 llama blob, a small
-    model wearing a big label. About 500 of them share one byte-identical blob, so this is a
-    single artifact copied across hundreds of machines, not hundreds of separate pranks. A
-    smaller, more deliberate seven fabricate the manifest outright: zero-byte entries whose
-    <code>parameter_size</code> is the literal string <code>synthetic</code>, listing
-    current premium models they demonstrably do not hold, each sitting beside per-host
-    <code>gateway-diagnostic</code> entries. That tier looks like a catalogue kept
-    up to date on purpose, or a scanner planting its own write-test marker. We cannot tell
-    which from here.</p>
-    <p class="note">One detail gives the game away: which names get faked. Whenever a real
-    model actually sits behind the fake label, the label is a 2024 trophy, almost always
-    <code>gpt-4</code>, <code>gpt-4o</code> or <code>claude-3-opus</code>. The current
-    flagships, <code>claude-opus-4.8</code> or <code>gpt-5.5</code>, turn up only as the
-    empty synthetic manifests, never with weights behind them. So nobody parks a cheap model
-    behind a current name and invites you to test it. The impersonation is frozen where it
-    started, reaching for models that were the state of the art when these boxes were set up
-    and have since been passed by weights anyone can download for free. Even the successful
-    version of this lie now points at something a small open model would beat.</p>
-    <p class="note">The fake names are not the only small thing on these boxes. Setting the
-    fakes aside and measuring the real models, hosts carrying a premium name run
-    noticeably smaller models than clean hosts: a median of 1.9&nbsp;GB against 4.7&nbsp;GB,
-    with 42% under a gigabyte versus 16%. They also cluster on old Ollama versions, a fifth
-    of them on 0.30.2 alone, where clean hosts spread across many including current
-    releases. So the premium label tends to sit on an older, lighter, less maintained box.</p>
-    <div id="fakesize"></div>
-    <div class="legend" id="fakesize-legend"></div>
-  </div>
 
   <div class="card" style="margin-top:16px">
     <h2 style="font-size:15px">So what is it?</h2>
@@ -533,12 +497,16 @@
 </section>
 <section>
   <h2>It arrives in waves</h2>
-  <p class="note">The phantom catalogue is not a constant background. Counted as a share of
-  everything visible on the same day, so the survey's own changing coverage cancels out , 
-  the fleet appears from nothing in April 2025, peaks that summer, very nearly disappears
-  over the winter, and then comes back through 2026 larger than the first time.</p>
-  <p class="note">Whatever this is, it is not a one-off misconfiguration that has been
-  sitting there since 2025. Something turned it off and something turned it back on.</p>
+  <p class="note">A fair objection to all of this is that we simply got better at scanning
+  and the fleet was always there. So count it as a share of everything visible on the same
+  day instead. Our own coverage cancels out, and if the shape survives that, the shape is
+  real.</p>
+  <p class="note">It survives. Nothing at all before April 2025, a peak that summer, an
+  almost total disappearance over the winter, then a second climb through 2026 that is now
+  bigger than the first.</p>
+  <p class="note">Which kills the most boring explanation available. This is not one broken
+  config copied around in 2025 and left to rot, because a thing left to rot does not stop
+  and start again. Something turned it off. Something turned it back on.</p>
   <div class="card">
     <div class="controls">
       <button id="wave-share" aria-pressed="true">Share of population</button>
@@ -550,11 +518,12 @@
 </section>
 <section>
   <h2>Where they are hosted</h2>
-  <p class="note">One thing about this fleet is settled. Of every phantom-catalogue host
-  that the FOFA capture also saw, <b>all of them are on AWS</b>, and not one of the ten
-  thousand hosts in the same capture that are hosted anywhere else is one. If the fleet
-  were spread in proportion to where Ollama servers actually live, a couple of thousand of
-  them would be off AWS. None are.</p>
+  <p class="note">Here is the one thing about this fleet we can say without hedging. Every
+  phantom-catalogue host that our FOFA capture also saw is on AWS. Not most of them. All of
+  them. The same capture holds ten thousand Ollama servers hosted somewhere that is not AWS,
+  and the number of those carrying the phantom catalogue is zero.</p>
+  <p class="note">Spread proportionally, a couple of thousand should be sitting on Hetzner
+  and OVH and the rest. Go and look. They are not there.</p>
   <div class="card">
     <div id="hosting"></div>
     <div class="legend" id="hosting-legend"></div>
@@ -565,38 +534,89 @@
 <div class="chapter">
   <div class="chapter-num">Chapter 2.2</div>
   <h2 class="chapter-title">The commercial models that cannot exist</h2>
-  <p class="chapter-lede">The smaller kind, and the one with an answer. These sit on real,
-  working servers, and the servers will tell you what the models are if you ask them
-  directly. The obvious explanations turn out to be wrong, and the real one is not subtle.</p>
+  <p class="chapter-lede">The small pile, and the one we solved. The solution took about
+  one HTTP request, which is a little embarrassing given how long we spent theorising
+  first.</p>
+  <p class="chapter-lede">Below: what these servers claim, the two sensible explanations for
+  it, why the evidence refuses to support either, and then what is actually in there.</p>
 </div>
 <section>
+  <h2>Servers wearing models they cannot run</h2>
+
+  <p class="note">Probing live hosts directly turned up a separate oddity. Hundreds of
+  real, working Ollama boxes advertise a closed-weights model that cannot exist on
+  Ollama: <code>gpt-4</code>, <code>gpt-4o</code>, <code>claude-3-opus</code>, and newer
+  names like <code>claude-opus-4.8</code>, <code>gpt-5.5</code> and
+  <code>gemini-3.5-flash</code>. Of the live hosts we reached, 726 carried at least one
+  of these.</p>
+  <p class="note">They never appear alone. Every one of those 726 also runs genuine open
+  models, usually Qwen, DeepSeek, or an abliterated Huihui build, so these are not empty
+  decoys but real servers with fake names planted among the real ones. And the fake names
+  carry no <code>hf.co/</code> prefix the way the genuine models on the same boxes do, so
+  they are made on the machine with <code>ollama cp</code> or a Modelfile, not pulled from
+  Hugging Face. There is no upstream repo claiming to be GPT-4. It is local theatre.</p>
+  <p class="note">Two very different levels of effort sit behind it. On 708 hosts the
+  premium name points at a real but tiny 638&nbsp;MB, 1.1B, Q4_0 llama blob, a small
+  model wearing a big label. About 500 of them share one byte-identical blob, so this is a
+  single artifact copied across hundreds of machines, not hundreds of separate pranks. A
+  smaller, more deliberate seven fabricate the manifest outright: zero-byte entries whose
+  <code>parameter_size</code> is the literal string <code>synthetic</code>, listing
+  current premium models they demonstrably do not hold, each sitting beside per-host
+  <code>gateway-diagnostic</code> entries. That tier looks like a catalogue kept
+  up to date on purpose, or a scanner planting its own write-test marker. We cannot tell
+  which from here.</p>
+  <p class="note">One detail gives the game away: which names get faked. Whenever a real
+  model actually sits behind the fake label, the label is a 2024 trophy, almost always
+  <code>gpt-4</code>, <code>gpt-4o</code> or <code>claude-3-opus</code>. The current
+  flagships, <code>claude-opus-4.8</code> or <code>gpt-5.5</code>, turn up only as the
+  empty synthetic manifests, never with weights behind them. So nobody parks a cheap model
+  behind a current name and invites you to test it. The impersonation is frozen where it
+  started, reaching for models that were the state of the art when these boxes were set up
+  and have since been passed by weights anyone can download for free. Even the successful
+  version of this lie now points at something a small open model would beat.</p>
+  <p class="note">The fake names are not the only small thing on these boxes. Setting the
+  fakes aside and measuring the real models, hosts carrying a premium name run
+  noticeably smaller models than clean hosts: a median of 1.9&nbsp;GB against 4.7&nbsp;GB,
+  with 42% under a gigabyte versus 16%. They also cluster on old Ollama versions, a fifth
+  of them on 0.30.2 alone, where clean hosts spread across many including current
+  releases. So the premium label tends to sit on an older, lighter, less maintained box.</p>
+  <div class="card">
+    <h2 style="font-size:15px">The real models on boxes that carry a fake one</h2>
+    <div id="fakesize"></div>
+    <div class="legend" id="fakesize-legend"></div>
+  </div>
+</section>
+<section>
   <h2>The explanations that do not survive</h2>
-  <p class="note">The rest of this section is negative results, which are worth stating
-  because the obvious explanations are testable and they fail. The premium model names
-  (<code>gpt-4o</code>, <code>claude-3-opus</code>) have a mundane candidate explanation:
-  Ollama documents that you can <code>ollama cp</code> a local model onto an OpenAI name so
-  that software expecting OpenAI works against a local server. That technique is real. It
-  is not what produced these.</p>
+  <p class="note">There is a completely mundane explanation available and we went looking
+  for it first. Plenty of closed-source software ships a hardcoded list of OpenAI model
+  names with no way to change it. Point it at your own machine with
+  <code>OPENAI_BASE_URL</code>, run <code>ollama cp</code> to give one of your models the
+  name the software insists on, and it works. This is not a hack somebody clever invented.
+  Ollama documents it.</p>
+  <p class="note">Good theory. It makes predictions. Every one of them is wrong.</p>
   <div class="card">
     <p class="note" id="hosting-neg" style="margin:0"></p>
   </div>
-  <p class="note">None of that says what the fleet <i>is</i>. It says the tidy explanations
-  are not supported where they would leave a mark, and that whatever is behind it chose one
-  hosting provider exclusively.</p>
+  <p class="note">So the tidy explanations leave no mark anywhere we would expect to find
+  one. That is not the same as knowing what this is. It only rules things out, which is
+  most of what this chapter can offer.</p>
 </section>
 <section>
   <h2>What the commercial models actually are</h2>
-  <p class="note">Some of these servers advertise <code>gpt-4o</code>,
-  <code>claude-3-opus</code> and <code>gpt-4</code>. Those are not OpenAI's or Anthropic's
-  weights, which are not public, and they are not somebody aliasing a local model so an
-  app that expects OpenAI will work. Asking the servers what the model actually is settles
-  it. Every one of them is <code>tinyllama</code>, a 638&nbsp;MB model released in 2023,
-  with about 1.25&nbsp;kB of text appended.</p>
-  <p class="note">The appended text is an extortion demand. It claims the machine has been
-  compromised and asks for a Bitcoin donation. It is installed as the model's system prompt
-  and as a seeded conversation, so the model agrees in advance to repeat the demand in
-  every reply. Nothing is encrypted and nothing is deleted. Several of these hosts are
-  serving real 27-billion-parameter models perfectly well alongside it.</p>
+  <p class="note">So we stopped theorising and asked one. Ollama has an endpoint,
+  <code>/api/show</code>, that hands back exactly what a model is: what it was copied from,
+  the architecture inside the file, and any system prompt somebody attached to it. It is one
+  <code>curl</code>. In hindsight this should have been the first thing we tried rather than
+  the last.</p>
+  <p class="note">Every single one of them is <code>tinyllama</code>. A 638&nbsp;MB model
+  from 2023 that runs comfortably on a laptop, wearing a GPT-4 badge, with about
+  1.25&nbsp;kB of text stapled to the front.</p>
+  <p class="note">The text is a ransom note. It announces that the machine has been
+  compromised and asks for Bitcoin. It is installed as the system prompt and as a
+  pre-seeded conversation, so the model has already agreed, in writing, to repeat the demand
+  in every answer it ever gives. Nothing is encrypted. Nothing is deleted. Several of these
+  machines are cheerfully serving real 27-billion-parameter models the whole time.</p>
   <div class="card">
     <h2 style="font-size:15px">It is tinyllama, and the servers say so</h2>
     <div id="camp-evidence"></div>
@@ -611,13 +631,16 @@
     <h2 style="font-size:15px">What it earned</h2>
     <p class="note" id="wallet-note" style="margin:0"></p>
   </div>
-  <p class="note"><b>If you found this on your own machine.</b> The address is published
-  here deliberately. Somebody who discovers this note on a server they run is likely to
-  search for the wallet, and what they should find is that it has never received a payment
-  and that nothing on the machine was damaged. The demand is a bluff. What is worth acting
-  on is the reason it arrived: the Ollama API was reachable from the internet and accepted
-  writes without authentication, so anyone at all could install a model. Close that, and
-  delete the models you did not install.</p>
+  <p class="note"><b>If you got here by searching that wallet address, this part is for
+  you.</b> We published it on purpose. If you found this note on a machine you run,
+  searching the address is exactly what you would do next, and you deserve to land somewhere
+  that tells you the truth. It has never been paid, by anybody. Nothing on your server was
+  encrypted or deleted. The demand is a bluff and you can ignore it.</p>
+  <p class="note">What does deserve your attention is how it got there. Your Ollama API was
+  reachable from the open internet and accepted writes without asking anyone for a password,
+  which means anybody at all could install a model on your machine. This particular person
+  left a note asking for money. The next one might not. Close the port, and delete the
+  models you did not put there.</p>
 </section>
 
 <section>
