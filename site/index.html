@@ -348,6 +348,31 @@
   </div>
 </section>
 <section>
+  <h2>Where they are, and what they are not</h2>
+  <p class="note">One thing about this fleet is settled. Of every phantom-catalogue host
+  that the FOFA capture also saw, <b>all of them are on AWS</b>, and not one of the ten
+  thousand hosts in the same capture that are hosted anywhere else is one. If the fleet
+  were spread in proportion to where Ollama servers actually live, a couple of thousand of
+  them would be off AWS. None are.</p>
+  <div class="card">
+    <div id="hosting"></div>
+    <div class="legend" id="hosting-legend"></div>
+    <p class="note" id="hosting-note"></p>
+  </div>
+  <p class="note">The rest of this section is negative results, which are worth stating
+  because the obvious explanations are testable and they fail. The premium model names
+  (<code>gpt-4o</code>, <code>claude-3-opus</code>) have a mundane candidate explanation:
+  Ollama documents that you can <code>ollama cp</code> a local model onto an OpenAI name so
+  that software expecting OpenAI works against a local server. That technique is real. It
+  is not what produced these.</p>
+  <div class="card">
+    <p class="note" id="hosting-neg" style="margin:0"></p>
+  </div>
+  <p class="note">None of that says what the fleet <i>is</i>. It says the tidy explanations
+  are not supported where they would leave a mark, and that whatever is behind it chose one
+  hosting provider exclusively.</p>
+</section>
+<section>
   <h2>Hundreds of hosts answering as Ollama</h2>
   <p class="note">OllamaSpider scrapes Shodan and grabs endpoints on ports that were never Ollama. The
   other two feeds verify their hosts and do not carry this. Open Ollama servers are not

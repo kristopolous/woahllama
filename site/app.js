@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -46,6 +46,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     pullsChart(pulls);
     lagChart(lag);
     waveChart(wave);
+    hostingChart(hosting);
     geoChart(geo);
     worldMap(world, mapd);
     bubbles(octets);
@@ -2071,6 +2072,115 @@ function waveChart(W) {
   };
 
   pair($('wave-share'), $('wave-count'), null, null, a => { asShare = a; draw(); });
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+}
+
+/* ============ where the fleet is hosted, and what it is not ================ */
+/* Two stacked bars, AWS against everywhere else, each split into
+   phantom-catalogue hosts and the rest. The point is the second bar having no
+   coloured segment at all: not a small one, none. */
+function hostingChart(D) {
+  const host = $('hosting');
+  if (!host || !D) return;
+
+  const draw = () => {
+    const rows = [
+      { label: 'On AWS', p: D.aws.phantom, n: D.aws.other },
+      { label: 'Hosted anywhere else', p: D.not_aws.phantom, n: D.not_aws.other },
+    ];
+    const W = host.clientWidth || 1100;
+    const M = { t: 20, r: 24, b: 46, l: 178 };
+    const rowH = 62, ih = rows.length * rowH, H = M.t + ih + M.b;
+    const iw = W - M.l - M.r;
+    const max = Math.max(...rows.map(r => r.p + r.n));
+    const X = v => (v / max) * iw;
+    const C_P = 'var(--series-8)', C_N = 'var(--series-1)';
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (const t of niceTicks(max, 5)) {
+      grid.append(el('line', { x1: M.l + X(t), x2: M.l + X(t), y1: M.t, y2: M.t + ih }));
+      axis.append(el('text', { x: M.l + X(t), y: M.t + ih + 18, 'text-anchor': 'middle' },
+        fmtInt(t)));
+    }
+    svg.append(grid, axis);
+
+    rows.forEach((r, i) => {
+      const y = M.t + rowH * i + 12, h = rowH - 30;
+      const g = el('g');
+      [[r.p, C_P, 'phantom catalogue'], [r.n, C_N, 'everything else']]
+        .reduce((x0, [v, col, what]) => {
+          if (v > 0) {
+            const rect = el('rect', { x: M.l + X(x0), y, width: Math.max(1, X(v)),
+              height: h, fill: col, 'fill-opacity': .85 });
+            rect.addEventListener('mousemove', ev => showTip(
+              `<div class="d">${r.label}</div>
+               <table><tr><td>${what}</td><td class="n">${fmtInt(v)}</td></tr>
+               <tr><td>share of this row</td><td class="n">${(100*v/(r.p+r.n)).toFixed(1)}%</td></tr></table>`, ev));
+            rect.addEventListener('mouseleave', hideTip);
+            g.append(rect);
+          }
+          return x0 + v;
+        }, 0);
+      axis.append(el('text', { x: M.l - 14, y: y + h / 2 + 4, 'text-anchor': 'end',
+        fill: 'var(--text-primary)', style: 'font-size:13px' }, r.label));
+      axis.append(el('text', { x: M.l + X(r.p + r.n) + 8, y: y + h / 2 + 4,
+        fill: 'var(--text-secondary)', style: 'font-size:11px' },
+        r.p ? `${fmtInt(r.p)} phantom of ${fmtInt(r.p + r.n)}` : `none of ${fmtInt(r.n)}`));
+      svg.append(g);
+    });
+    axis.append(el('text', { x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle' },
+      'Ollama hosts the FOFA capture also saw'));
+    svg.append(axis);
+    host.replaceChildren(svg);
+
+    legend($('hosting-legend'), [
+      { name: 'Phantom-catalogue host', color: C_P },
+      { name: 'Ordinary host', color: C_N },
+    ]);
+
+    $('hosting-note').innerHTML =
+      `${fmtInt(D.aws.phantom)} of the ${fmtInt(D.aws.phantom + D.aws.other)} AWS-hosted
+       Ollama servers in this capture carry the phantom catalogue. Off AWS:
+       <b>${D.not_aws.phantom} of ${fmtInt(D.not_aws.other)}</b>. At the overall rate of
+       ${D.overall_rate}% an even spread would put about
+       <b>${fmtInt(D.expected_if_even)}</b> of them on other providers. The daily live
+       probe, whose hosts are mostly OVH, Hetzner, Alibaba and small providers, finds none
+       either. This is what FOFA saw, and FOFA's Ollama population is AWS-heavy to begin
+       with — but an AWS-heavy sample does not produce a count of exactly zero elsewhere.`;
+
+    const ex = D.doc_examples && D.doc_examples.examples;
+    const nc = D.name_counts, b = D.alias_blob;
+    const cp = ex ? Object.entries(ex).sort((a, c) => c[1] - a[1]) : [];
+    $('hosting-neg').innerHTML = !ex ? '' :
+      `<b>The documentation does not name these models.</b> Every version of Ollama's
+       compatibility docs that ever shipped — read out of the repository's own git history,
+       which is what builds docs.ollama.com — uses one of
+       ${cp.map(([c, n]) => `<code>${c}</code> (${n}×)`).join(', ')}.
+       <code>gpt-4o</code> and <code>claude-3-opus</code> appear in none of them.
+       <br><br>
+       <b>The names the docs do use are absent from the wild.</b>
+       <code>gpt-3.5-turbo</code>, the OpenAI example in every revision, appears on
+       <b>${nc['gpt-3.5-turbo']}</b> host-model row.
+       <code>claude-3-5-sonnet</code>, the Anthropic example, appears on
+       <b>${nc['claude-3-5-sonnet']}</b>. The names actually out there are
+       <code>claude-3-opus</code> (${fmtInt(nc['claude-3-opus'])}),
+       <code>gpt-4</code> (${fmtInt(nc['gpt-4'])}) and
+       <code>gpt-4o</code> (${fmtInt(nc['gpt-4o'])}).
+       ${D.doc_examples.anthropic_first ? `The Anthropic compatibility document did not
+       exist until <b>${D.doc_examples.anthropic_first}</b>, eight months after the first
+       wave peaked.` : ''}
+       <br><br>
+       <b>The blob underneath is wrong for the theory.</b> ${b ? `All
+       ${fmtInt(b.rows)} premium-named installs resolve to the same
+       <b>${b.params} ${b.quant} ${b.family}</b> blob — the smallest common model there
+       is — on machines that are simultaneously serving 27B and 36B models. Someone
+       aliasing a model so their editor works would alias the good one.` : ''}
+       <br><br>
+       <b>No packaged image accounts for it either.</b> A search of Docker Hub for images
+       that bake these names found nothing.`;
+  };
   draw();
   addEventListener('resize', debounce(draw, 150));
 }

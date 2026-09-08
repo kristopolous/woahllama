@@ -52,6 +52,8 @@ python3 build_lag.py || true
 python3 survey_versions.py
 python3 build_hoarding.py
 python3 build_hoarding_time.py
+# where the responder fleet is hosted + the negative results (needs fofa.db)
+python3 build_hosting.py || true
 if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi
