@@ -179,6 +179,18 @@ records, per model per month, what share of that model's hosts are flagged by
 Chapter 2, which is what separates the responder fleet's contribution from the
 organic baseline.
 
+**The hosting result is a positive claim; the rest are negative ones.**
+`build_hosting.py` records both. Every phantom-catalogue host the FOFA capture
+also saw is on AWS, and none of the 10,444 non-AWS hosts in the same capture is
+one, where an even spread would put about 2,295 of them elsewhere. FOFA's Ollama
+population is AWS-heavy to begin with, which is stated on the chart — but an
+AWS-heavy sample does not yield exactly zero elsewhere. The negative results are
+recorded the same way, from data rather than prose: the `ollama cp` examples in
+every revision of Ollama's compatibility documentation (read out of the
+repository's git history, which is what builds docs.ollama.com), against how often
+those names actually appear in the wild. They do not match, and the file says so
+with counts rather than assertion.
+
 **The most recent two days are trimmed**, since a half-finished day of scanning
 reads as a real drop in every trend.
 
