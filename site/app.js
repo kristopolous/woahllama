@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -62,7 +62,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     retentionCurve(popmodel);
     populationModel(popmodel);
     fakeSizeChart(fakeSize);
-    hoardingChart(hoarding, vendors);
+    hoardingChart(hoarding, vendors, hoardT);
     addEventListener('resize', debounce(() => {
       population(counts); vendorChart(vendors, counts);
       modelChart(models, true); geoChart(geo, true);
@@ -76,7 +76,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     poolScatter(pools); blocksChart(models, vendors); lifespanHist(life);
       retentionCurve(window.__popmodel); populationModel(window.__popmodel);
       fakeSizeChart(window.__fakesize);
-      hoardingChart(hoarding, vendors);
+      hoardingChart(hoarding, vendors, hoardT);
       drawFrame(octets, +$('frame').value);
       worldMap(world, mapd);
     }, 180));
@@ -1386,15 +1386,43 @@ function addZoom(host, svg, W, H) {
 /* Each dot is a model: x = how many hosts run it (log), y = the average library
    size of those hosts. Popular defaults sit low (minimal boxes); specialised and
    cloud-proxied models sit high (big multi-model rigs). Colour by lab. */
-function hoardingChart(H, vendors) {
+/* "The company a model keeps", over time. Each dot is a model: across is how
+   many hosts run it, up is the average library size of those hosts. The single
+   snapshot could not distinguish a model that has always sat on minimal boxes
+   from one that was recently adopted by a fleet of identical ones, and that
+   distinction is the whole question next to Chapter 2's waves — so this runs
+   month by month, with the axes fixed across every frame so movement is real. */
+function hoardingChart(H, vendors, T) {
   const host = $('hoarding');
+  const frames = T && T.frames && T.frames.length ? T.frames : null;
+  // fi === -1 is the aggregate: the whole record pooled, which is the view the
+  // monthly frames decompose. It opens there, because "what does this model sit
+  // beside, overall" is the question, and the months are how it got there.
+  let fi = -1, timer = null;
+
+  // rows in the shape the scatter draws: [name, hosts, avgLib, vendor, params,
+  // uncensored, % of those hosts flagged by Chapter 2]
+  const rowsAt = k => {
+    if (!frames) return H.models.map(m => [...m, null]);
+    if (k < 0) return Object.entries(T.overall.models).map(([name, v]) => {
+      const m = T.models[name] || {};
+      return [name, v[0], v[1], m.vendor, m.params, m.uncensored, v[2]];
+    });
+    return Object.entries(T.models).flatMap(([name, m]) => {
+      const p = m.points.find(x => x[0] === k);
+      return p ? [[name, p[1], p[2], m.vendor, m.params, m.uncensored, p[3]]] : [];
+    });
+  };
+
+  const all = frames ? [rowsAt(-1), ...frames.map((_, k) => rowsAt(k))].flat() : rowsAt(0);
   const W = host.clientWidth || 1100, ht = 440;
   const M = { t: 26, r: 16, b: 40, l: 46 };
   const iw = W - M.l - M.r, ih = ht - M.t - M.b;
   const vc = vendorColors(vendors);
-  const hostsMax = Math.max(...H.models.map(m => m[1]));
-  const avgMax = Math.max(...H.models.map(m => m[2])) * 1.08;
-  const sized = H.models.filter(m => m[4]);
+  // maxima over every frame, so a dot moving means the model moved
+  const hostsMax = Math.max(...all.map(m => m[1]));
+  const avgMax = Math.max(...all.map(m => m[2])) * 1.08;
+  const sized = all.filter(m => m[4]);
   const lp = Math.log10(Math.min(...sized.map(m => m[4])));
   const hp = Math.log10(Math.max(...sized.map(m => m[4])));
   const R = pb => pb == null ? 3 : 3.5 + (Math.log10(pb) - lp) / (hp - lp) * 13;
@@ -1402,56 +1430,101 @@ function hoardingChart(H, vendors) {
     : '\u2248' + (pb >= 1000 ? (pb / 1000) + 'T' : pb < 1 ? Math.round(pb * 1000) + 'M' : pb + 'B') + ' params';
   const X = n => M.l + Math.log10(n / 10) / Math.log10(hostsMax * 1.3 / 10) * iw;
   const Y = a => M.t + ih - a / avgMax * ih;
+  const UNC = '#f01e5a';
 
-  const svg = el('svg', { viewBox: `0 0 ${W} ${ht}`, height: ht });
-  const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
-  for (const a of [0, 10, 20, 30, 40]) {
-    if (a > avgMax) continue;
-    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(a), y2: Y(a) }));
-    axis.append(el('text', { x: M.l - 8, y: Y(a) + 4, 'text-anchor': 'end' }, a));
-  }
-  for (const n of [12, 20, 50, 100, 200, 500, 1000]) {
-    if (n > hostsMax * 1.3) continue;
-    grid.append(el('line', { x1: X(n), x2: X(n), y1: M.t, y2: M.t + ih }));
-    axis.append(el('text', { x: X(n), y: ht - 6, 'text-anchor': 'middle' }, n));
-  }
-  // typical-library reference line
-  grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(H.overall_mean), y2: Y(H.overall_mean),
-    stroke: 'var(--text-muted)', 'stroke-dasharray': '3 3' }));
-  axis.append(el('text', { x: W - M.r, y: Y(H.overall_mean) - 5, 'text-anchor': 'end',
-    style: 'fill:var(--text-muted)' }, `typical (${H.overall_mean})`));
-  axis.append(el('text', { x: M.l, y: 13, 'text-anchor': 'start',
-    style: 'fill:var(--text-muted)' }, 'avg library size'));
-  axis.append(el('text', { x: M.l + iw / 2, y: ht - 4, 'text-anchor': 'middle',
-    style: 'fill:var(--text-muted)' }, 'hosts running the model  \u2192'));
-  svg.append(grid, axis);
+  const draw = () => {
+    const rows = rowsAt(fi);
+    const typical = !frames ? H.overall_mean
+      : fi < 0 ? T.overall.mean_lib : frames[fi].mean_lib;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${ht}`, height: ht });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    for (const a of niceTicks(avgMax, 5)) {
+      grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(a), y2: Y(a) }));
+      axis.append(el('text', { x: M.l - 8, y: Y(a) + 4, 'text-anchor': 'end' }, a));
+    }
+    for (const n of [12, 20, 50, 100, 200, 500, 1000, 2000]) {
+      if (n > hostsMax * 1.3) continue;
+      grid.append(el('line', { x1: X(n), x2: X(n), y1: M.t, y2: M.t + ih }));
+      axis.append(el('text', { x: X(n), y: ht - 6, 'text-anchor': 'middle' }, n));
+    }
+    grid.append(el('line', { x1: M.l, x2: W - M.r, y1: Y(typical), y2: Y(typical),
+      stroke: 'var(--text-muted)', 'stroke-dasharray': '3 3' }));
+    axis.append(el('text', { x: W - M.r, y: Y(typical) - 5, 'text-anchor': 'end',
+      style: 'fill:var(--text-muted)' }, `typical (${typical})`));
+    axis.append(el('text', { x: M.l, y: 13, 'text-anchor': 'start',
+      style: 'fill:var(--text-muted)' }, 'avg library size'));
+    axis.append(el('text', { x: M.l + iw / 2, y: ht - 4, 'text-anchor': 'middle',
+      style: 'fill:var(--text-muted)' }, 'hosts running the model  \u2192'));
+    svg.append(grid, axis);
 
-  const UNC = '#f01e5a';   // uncensored / abliterated: a deliberate operator choice
-  [...H.models].sort((a, b) => (b[4] || 0) - (a[4] || 0)).forEach(([name, hosts, avg, vend, pb, unc]) => {
-    const grp = unc ? 'Uncensored' : vend;
-    const c = el('circle', { cx: X(hosts), cy: Y(avg), r: R(pb),
-      fill: unc ? UNC : vc.colorFor(vend), 'fill-opacity': 0.55,
-      stroke: 'var(--surface-1)', 'stroke-width': 1, 'data-vendor': grp });
-    c.addEventListener('mousemove', ev => showTip(
-      `<b>${name}</b><br>${hosts.toLocaleString()} hosts · ${fmtP(pb)}<br>` +
-      `their libraries average <b>${avg}</b> models<br>` +
-      `<span style="color:var(--text-muted)">${unc ? 'uncensored · ' + vend : vend}</span>`, ev));
-    c.addEventListener('mouseleave', hideTip);
-    svg.append(c);
-  });
-  host.replaceChildren(svg);
-  const lg = $('hoarding-legend');
-  const dim = v => svg.querySelectorAll('circle').forEach(c =>
-    c.setAttribute('fill-opacity',
-      v === null || c.getAttribute('data-vendor') === v ? 0.55 : 0.05));
-  const items = [{ name: 'Uncensored', color: UNC }, ...vc.top.map(v => ({ name: v, color: vc.map[v] }))];
-  lg.replaceChildren(...items.map(it => {
-    const sp = document.createElement('span');
-    sp.innerHTML = `<i style="background:${it.color}"></i>${it.name}`;
-    sp.addEventListener('mouseenter', () => dim(it.name));
-    sp.addEventListener('mouseleave', () => dim(null));
-    return sp;
-  }));
+    [...rows].sort((a, b) => (b[4] || 0) - (a[4] || 0))
+      .forEach(([name, hosts, avg, vend, pb, unc, flag]) => {
+      const grp = unc ? 'Uncensored' : vend;
+      const c = el('circle', { cx: X(hosts), cy: Y(avg), r: R(pb),
+        fill: unc ? UNC : vc.colorFor(vend), 'fill-opacity': 0.55,
+        stroke: 'var(--surface-1)', 'stroke-width': 1, 'data-vendor': grp });
+      c.addEventListener('mousemove', ev => showTip(
+        `<b>${name}</b><br>${hosts.toLocaleString()} hosts \u00b7 ${fmtP(pb)}<br>` +
+        `their libraries average <b>${avg}</b> models<br>` +
+        (flag == null ? '' : `<b>${flag}%</b> of those hosts are flagged by Chapter 2<br>`) +
+        `<span style="color:var(--text-muted)">${unc ? 'uncensored \u00b7 ' + vend : vend}</span>`, ev));
+      c.addEventListener('mouseleave', hideTip);
+      svg.append(c);
+    });
+    host.replaceChildren(svg);
+
+    const lg = $('hoarding-legend');
+    const dim = v => svg.querySelectorAll('circle').forEach(c =>
+      c.setAttribute('fill-opacity',
+        v === null || c.getAttribute('data-vendor') === v ? 0.55 : 0.05));
+    const items = [{ name: 'Uncensored', color: UNC },
+                   ...vc.top.map(v => ({ name: v, color: vc.map[v] }))];
+    lg.replaceChildren(...items.map(it => {
+      const sp = document.createElement('span');
+      sp.innerHTML = `<i style="background:${it.color}"></i>${it.name}`;
+      sp.addEventListener('mouseenter', () => dim(it.name));
+      sp.addEventListener('mouseleave', () => dim(null));
+      return sp;
+    }));
+
+    if (frames) {
+      const f = fi < 0 ? T.overall : frames[fi];
+      $('hoard-date').textContent = fi < 0 ? 'All time' : f.date;
+      $('hoard-frame').value = fi;
+      $('hoard-all').setAttribute('aria-pressed', String(fi < 0));
+      const note = $('hoarding-note');
+      if (note) note.innerHTML =
+        (fi < 0
+          ? `<b>All time</b>: every server in the record, ${fmtInt(f.hosts)} of them,
+             each one's library being every distinct model it was ever seen running.`
+          : `<b>${f.date}</b>: ${fmtInt(f.hosts)} hosts visible that month, average
+             library <b>${f.mean_lib}</b> models.`) +
+        ` ${rows.length} models on at least ${T.min_hosts} hosts; average library
+          <b>${f.mean_lib}</b>. Axes are fixed across the aggregate and every month, so
+          a dot moving is the model moving. Built from survey.db — Ollama only, and a
+          different population from the single-snapshot version this replaces.`;
+    }
+  };
+
+  if (frames) {
+    const sl = $('hoard-frame');
+    sl.min = -1; sl.max = frames.length - 1; sl.value = fi;
+    sl.addEventListener('input', () => { fi = +sl.value; stop(); draw(); });
+    $('hoard-all').addEventListener('click', () => { stop(); fi = -1; draw(); });
+    const btn = $('hoard-play');
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; btn.textContent = '\u25b6 Play'; } };
+    btn.addEventListener('click', () => {
+      if (timer) return stop();
+      btn.textContent = '\u2016 Pause';
+      if (fi < 0) fi = -1;
+      timer = setInterval(() => {
+        fi = fi + 1 >= frames.length ? -1 : fi + 1;
+        draw();
+        if (fi === frames.length - 1) stop();
+      }, 700);
+    });
+  }
+  draw();
 }
 
 /* ========================= survival + population model ===================== */

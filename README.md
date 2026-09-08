@@ -171,6 +171,14 @@ coverage cancels, and what remains is a fleet that appeared in April 2025, peake
 at 9.6% of the exposed population that May, fell to 0.2% by January 2026, and has
 climbed every month since to 11.5% — already larger than the first wave.
 
+**"The company a model keeps" runs over time.** `build_hoarding_time.py` builds
+monthly frames from survey.db, which is the source that has history — a different
+population from the single-snapshot `hoarding.json` it sits next to, and Ollama
+only. Axes are held fixed across frames so movement is the model moving. It also
+records, per model per month, what share of that model's hosts are flagged by
+Chapter 2, which is what separates the responder fleet's contribution from the
+organic baseline.
+
 **The most recent two days are trimmed**, since a half-finished day of scanning
 reads as a real drop in every trend.
 

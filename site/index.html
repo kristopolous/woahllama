@@ -267,16 +267,33 @@
 <section>
   <h2>The company a model keeps</h2>
   <p class="note">Each dot is a model. Across is how many hosts run it; up is the average
-  library size of those hosts, meaning how many models they run in total.</p>
+  library size of those hosts, meaning how many models they run in total. It opens on the
+  whole record pooled; press play, or drag the slider, to run it month by month. The axes
+  are fixed across the aggregate and every frame, so a dot moving is the model moving and
+  not the scale changing.</p>
   <p class="note">The popular
   defaults sit on minimal single-purpose boxes, while cloud-proxied and specialised models
   ride on big multi-model rigs. Popularity anti-correlates with library size.</p>
+  <p class="note">Running it over time separates the responder fleet from the real
+  baseline, which one snapshot cannot. During the 2025 wave <code>openchat</code> sits on
+  hosts that are <b>74–89% flagged</b> by Chapter 2's tests with libraries of four to eight
+  models; once the wave recedes the hosts still running it are <b>21–45% flagged</b> with
+  libraries of eight or nine. <code>codellama</code> does the same, 70–81% down to 22–33%.
+  A control that is not in the phantom catalogue, <code>llama3.2</code>, holds flat at
+  30–39% throughout. The model does not change — the machines running it do.</p>
   <p class="note">Circle size is the model's parameter count. Coloured by lab, with uncensored and
   abliterated models pulled out in red as a behaviour of their own; the dashed line is the
   typical library.</p>
   <div class="card">
     <div id="hoarding"></div>
     <div class="legend" id="hoarding-legend"></div>
+    <div class="player">
+      <button id="hoard-all" aria-pressed="true">All time</button>
+      <button id="hoard-play">&#9654; Play</button>
+      <input type="range" id="hoard-frame" min="0" value="0">
+      <span class="date" id="hoard-date"></span>
+    </div>
+    <p class="note" id="hoarding-note"></p>
   </div>
 </section>
 <section>

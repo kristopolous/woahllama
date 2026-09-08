@@ -51,6 +51,7 @@ python3 model_releases.py  || true
 python3 build_lag.py || true
 python3 survey_versions.py
 python3 build_hoarding.py
+python3 build_hoarding_time.py
 if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi
