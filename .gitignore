@@ -2,6 +2,8 @@
 /Awesome-Ollama-Server/
 /ollamalist/
 /OllamaSpider/
+# upstream ollama, cloned for its release tag dates (pipeline/ollama_releases.py)
+/ollama/
 
 # Private raw data — never published. The results are here; the host lists are not.
 /version/
@@ -14,6 +16,9 @@
 # geo placements carried across a full re-ingest; keyed by server URL,
 # so it holds real IPs and must never be published
 /pipeline/geo_keep.db
+# derived from the private probe: its key space is model names observed on
+# real hosts, and some of those "names" are real IP addresses
+/pipeline/model_releases.json
 /survey.db-shm
 /survey.db-wal
 *.csv.gz

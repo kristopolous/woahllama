@@ -13,6 +13,15 @@ FN = re.compile(r'check-([0-9a-fA-F:.]+?)(?:-(\d{1,5}))?-(\d{14})\.json$')
 IMPOSSIBLE = {'gpt-4:latest','gpt-4o:latest','claude-3-opus:latest','gpt-3.5-turbo:latest',
               'claude-3.5-sonnet:latest','gpt-4-turbo:latest','gpt-5:latest','verif_sys:latest'}
 
+def as_int(v):
+    """Blob size. Some captures report it as a string, and a broken probe can
+    put anything here; the column is an INT and the size analysis divides by it."""
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
 def mod_ts(s):
     try: return int(datetime.datetime.fromisoformat(s).timestamp())
     except: return None
@@ -23,8 +32,15 @@ def probe_ts(s):
     except: return None
 
 def main():
+    # Three layouts, all still produced: the original flat drop, a shared tags/
+    # directory, and one check/ directory per scan run. The per-run files are
+    # named by an opaque hash rather than check-<ip>-<ts>, which is fine - host
+    # and probe time are read out of the JSON, not the filename.
     files = (glob.glob(os.path.join(GRAFLEX, "check-*.json"))
-             + glob.glob(os.path.join(GRAFLEX, "tags", "check-*.json")))
+             + glob.glob(os.path.join(GRAFLEX, "tags", "check-*.json"))
+             + glob.glob(os.path.join(GRAFLEX, "graflex", "tags", "check-*.json"))
+             + glob.glob(os.path.join(GRAFLEX, "graflex", "*", "check", "*.json")))
+    print(f"  tags captures: {len(files)}")
     con = sqlite3.connect(DB); c = con.cursor()
     c.executescript("""
       DROP TABLE IF EXISTS tags_model;
@@ -40,11 +56,16 @@ def main():
         try: d = json.load(open(f))
         except: continue
         if not isinstance(d, dict): continue
+        if not isinstance(d.get("models", []), list) and "payload" not in d: continue
         # new format: {host:"ip:port", check_time: <unix>, payload:{models:[...]}}
         if d.get("host") and "payload" in d:
             host = d["host"]
             pts = int(d["check_time"]) if d.get("check_time") else None
-            models = (d.get("payload") or {}).get("models") or []
+            # payload is normally {"models":[...]}, but some captures store the
+            # bare list, and an errored probe stores a string or null
+            pl = d.get("payload")
+            models = (pl.get("models") if isinstance(pl, dict)
+                      else pl if isinstance(pl, list) else []) or []
         else:
             # legacy: check-<ip>[-<port>]-<ts>.json with top-level models
             m = FN.search(os.path.basename(f))
@@ -66,7 +87,7 @@ def main():
             if t: mts.append(t)
             digs.add(x.get("digest"))
             if x.get("name") in IMPOSSIBLE: imp = True
-            mrows.append((host, pts, x.get("name"), t, x.get("size"),
+            mrows.append((host, pts, x.get("name"), t, as_int(x.get("size")),
                           det.get("parameter_size"), det.get("quantization_level"),
                           det.get("family"), x.get("digest")))
         # responder: reports an impossible model, or many "different" names on one tiny shared blob

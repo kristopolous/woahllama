@@ -90,6 +90,30 @@ def main():
 
     import json
     def fofa_rows():
+        """FOFA is now scanned in repeated runs, so a host can carry several
+        dated sightings and gets a real first-to-last span like the live probe.
+        The date is FOFA's own `mtime` for the asset - when FOFA last saw it -
+        not when we ran the query. Most hosts still appear on a single day; the
+        span only opens up for the ones a later run re-reported."""
+        if fq.execute("SELECT name FROM sqlite_master WHERE type='table'"
+                      " AND name='fofa_sighting'").fetchone():
+            span, mspan, ports = {}, {}, {}
+            for host, ip, port, mt, models in fq.execute(
+                    "SELECT host,ip,port,mtime,models FROM fofa_sighting"
+                    " WHERE mtime!='' ORDER BY mtime"):
+                t = uts(mt)
+                if t is None: continue
+                key = f"{ip}:{port}"
+                ports[key] = port
+                a, b, n = span.get(key, (t, t, 0))
+                span[key] = (min(a, t), max(b, t), n + 1)
+                for m in json.loads(models or "[]"):
+                    if not (m and m[0]): continue
+                    ma, mb, mn = mspan.setdefault(key, {}).get(m[0], (t, t, 0))
+                    mspan[key][m[0]] = (min(ma, t), max(mb, t), mn + 1)
+            for key, (a, b, n) in span.items():
+                yield (key, ports[key], a, b, n, mspan.get(key, {}))
+            return
         for ip, port, mt, models in fq.execute("SELECT ip,port,mtime,models FROM fofa_host WHERE mtime!=''"):
             t = uts(mt)
             yield (f"{ip}:{port}", port, mt, mt, 1,
@@ -132,10 +156,18 @@ def main():
     print(f"shodan-survey: {ps} presence")
     print(f"live-probe:    {pp} presence, {mp} model rows")
     print(f"new servers: {len(new_servers)}  new models: {len(new_models)}")
-    # coverage note
-    ng = c.execute("SELECT COUNT(*) FROM server s WHERE s.id NOT IN (SELECT server_id FROM server_geo)"
-                   " AND s.id >= ?", (min((r[0] for r in new_servers), default=10**9),)).fetchone()[0] if new_servers else 0
-    print(f"new servers lacking geolocation: {len(new_servers)-(len(new_servers)-ng)} (need dbip CSV + geo.py to place on map)")
+    # Coverage note. server_geo does not exist yet on a freshly re-ingested
+    # survey.db - geo_keep.py restore runs after this - so this is a report,
+    # never a reason to fail the merge that has already been committed.
+    have_geo = c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
+                         " AND name='server_geo'").fetchone()[0]
+    if new_servers and have_geo:
+        ng = c.execute("SELECT COUNT(*) FROM server s WHERE s.id >= ? AND s.id NOT IN"
+                       " (SELECT server_id FROM server_geo)",
+                       (min(r[0] for r in new_servers),)).fetchone()[0]
+        print(f"new servers lacking geolocation: {ng} (need dbip CSV + geo.py to place on map)")
+    elif new_servers:
+        print(f"new servers lacking geolocation: {len(new_servers)} (server_geo not built yet)")
     con.close(); fc.close()
 
 if __name__ == "__main__":

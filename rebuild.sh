@@ -21,6 +21,8 @@ fi
 # with the rest of survey.db. Re-attach the saved placements by URL before any
 # chart reads them; a no-op when nothing was ever saved.
 python3 geo_keep.py restore
+# country from the capture itself for hosts the db-ip lookup cannot place
+python3 geo_from_capture.py
 if [ -d ../tmp/graflex/tags ]; then
   python3 build_tags.py >/dev/null && echo "  tag pull dates ok"   # writes site/data/fake_size.json
 fi
@@ -42,6 +44,11 @@ python3 build_probe.py
 # still builds from the last snapshot if the scrape fails or is offline
 python3 library_pulls.py || true
 python3 build_pulls.py
+# daemon release dates need the ollama/ clone; model release dates need
+# model-list.json. The chart skips cleanly without either.
+python3 ollama_releases.py || true
+python3 model_releases.py  || true
+python3 build_lag.py || true
 python3 survey_versions.py
 python3 build_hoarding.py
 if [ -f ../fofa/fofa.db ]; then

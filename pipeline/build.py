@@ -109,9 +109,11 @@ def main():
     meta = {i: (b, v) for i, b, v in con.execute(
         "SELECT m.id, m.base, mv.vendor FROM model m"
         " JOIN model_vendor mv ON mv.model_id=m.id")}
+    from vendors import family as family_of
+    fam_cache = {}
     ser = {k: collections.defaultdict(lambda: [0]*ndays)
            for k in ("model_all", "model_clean", "vendor_all", "vendor_clean",
-                     "vendor_strict")}
+                     "vendor_strict", "family_all", "family_clean")}
     seen = collections.defaultdict(set)
     for svid, mid, a, b in con.execute(
             f"SELECT server_id,model_id,(start_ts-?)/?,(end_ts-?)/? FROM server_model"
@@ -122,8 +124,13 @@ def main():
         base, vend = meta[mid]
         for d in days(a, b):
             dirty = (svid, d) in sybil
-            for key, name in (("model", base), ("vendor", vend)):
+            fam = fam_cache.get(base)
+            if fam is None:
+                fam = fam_cache[base] = family_of(base)
+            for key, name in (("model", base), ("vendor", vend), ("family", fam)):
                 if key == "vendor" and mid in impossible:
+                    continue
+                if key == "family" and not name:
                     continue
                 k = (key, name, d)
                 if svid not in seen[k]:
@@ -135,10 +142,28 @@ def main():
                             ser["vendor_strict"][name][d] += 1
     top = sorted(ser["model_clean"], key=lambda m: max(ser["model_clean"][m]),
                  reverse=True)[:TOP_MODELS]
+    # A base name pins one generation, so every series decays as its successor
+    # arrives and the chart reads as universal abandonment. The family rollup
+    # (vendors.family) follows the line instead - gemma3 into gemma4, qwen3 into
+    # qwen3.8, llama3 into muse - so the page can show whether a lineage is
+    # holding while a generation inside it fades.
+    ftop = sorted(ser["family_clean"], key=lambda m: max(ser["family_clean"][m]),
+                  reverse=True)[:TOP_MODELS]
+    # A model name is whatever the host called it, and some hosts call a model
+    # after an IP address - two of them after another surveyed host's address.
+    # Names ship verbatim, so they get the same /16 masking as a host does.
+    from mask import mask_model_name as mm
     write(OUT/"models.json", {"day0": d0, "ndays": ndays,
-                              "all": {m: ser["model_all"][m] for m in top},
-                              "clean": {m: ser["model_clean"][m] for m in top},
-                              "vendor": {m: vendor_of(m) for m in top}})
+                              "all": {mm(m): ser["model_all"][m] for m in top},
+                              "clean": {mm(m): ser["model_clean"][m] for m in top},
+                              "vendor": {mm(m): vendor_of(m) for m in top},
+                              "fam_all": {mm(m): ser["family_all"][m] for m in ftop},
+                              "fam_clean": {mm(m): ser["family_clean"][m] for m in ftop},
+                              "fam_members": {mm(f): [mm(b) for b in sorted(
+                                  (b for b in ser["model_clean"]
+                                   if fam_cache.get(b) == f),
+                                  key=lambda b: -max(ser["model_clean"][b]))[:8]]
+                                  for f in ftop}})
     write(OUT/"vendors.json", {"day0": d0, "ndays": ndays,
                                "all": dict(ser["vendor_all"]),
                                "clean": dict(ser["vendor_clean"]),
@@ -186,9 +211,13 @@ def main():
     # Weekly buckets, not monthly. The frame step and the smoothing window are
     # independent: the page sums a wide window around each frame, so a finer step
     # buys smoother animation without thinning the sample behind any one frame.
-    NM = ndays // 7
+    # Round up so a part-finished final week still gets a frame, and label each
+    # frame by the last day it covers rather than the first. Labelling by the
+    # start made the timeline read as ending a week earlier than the data does.
+    NM = -(-ndays // 7)
     day_month = [min(d // 7, NM - 1) for d in range(ndays)]
-    months = [datetime.datetime.fromtimestamp(d0 + w*7*DAY, datetime.UTC)
+    months = [datetime.datetime.fromtimestamp(
+                  d0 + min(w*7 + 6, ndays - 1)*DAY, datetime.UTC)
               .strftime("%Y-%m-%d") for w in range(NM)]
 
     top_vendors = sorted(ser["vendor_clean"],
@@ -398,19 +427,26 @@ def main():
     del tot_w, ven_w
 
     # ---- 6. lifetimes ------------------------------------------------------
-    # Lifespan needs real spans, so the point-in-time surveys (FOFA/Shodan, a
-    # single-day sighting each) are excluded here: they carry no duration and
-    # would otherwise pile 80k zero-day "servers" into the under-a-day bucket.
-    # The daily live probe is kept: it re-checks the same hosts on successive
-    # days, so its presence rows are genuine first-to-last spans.
+    # Lifespan needs real spans. FOFA is now scanned in repeated runs, so some of
+    # its hosts do have a first-to-last duration and belong here - but most were
+    # seen on exactly one day, and a single sighting is a censored observation,
+    # not a life that lasted zero days. Including those would pile tens of
+    # thousands of false zero-day servers into the under-a-day bucket and drag
+    # every quantile down. So the rule is per row, not per source: a row from a
+    # snapshot source counts only if it actually spans more than one instant.
+    # Shodan has one sighting per host and contributes nothing eiter way.
     import bisect
     POINT_DISCOVERY = {"fofa-live", "shodan-live"}
     point_ids = {i for i, disc in con.execute("SELECT id, discovery FROM source")
                  if disc in POINT_DISCOVERY}
-    span_keep = "(" + ",".join(str(i) for i in sources if i not in point_ids) + ")"
+    span_ids = [i for i in sources if i not in point_ids]
+    span_keep = "(" + ",".join(str(i) for i in span_ids) + ")"
+    point_keep = "(" + ",".join(str(i) for i in point_ids) + ")"
     life = con.execute(
         "SELECT server_id, min(start_ts), max(end_ts), sum(n_snap), count(*),"
-        f" count(DISTINCT source_id) FROM presence WHERE source_id IN {span_keep}"
+        " count(DISTINCT source_id) FROM presence"
+        f" WHERE source_id IN {span_keep}"
+        f"    OR (source_id IN {point_keep} AND end_ts > start_ts)"
         " GROUP BY server_id").fetchall()
     dirty_ever = {r[0] for r in con.execute("SELECT DISTINCT server_id FROM sybil_day")}
     urls = dict(con.execute("SELECT id,url FROM server"))

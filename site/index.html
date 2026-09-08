@@ -32,7 +32,7 @@
 
 <div class="wrap">
 <header>
-  <h1>31,797 Open Ollama Servers and an Unsolved Mystery</h1>
+  <h1>32,863 Open Ollama Servers and an Unsolved Mystery</h1>
   <p class="sub">An eighteen month survey of unsecured Ollama servers reconstructed from the
   commit history of three scanners with hundreds of mysterious servers that aren't as they appear.</p>
   <p class="byline">Last updated: September 7, 2026</p>
@@ -115,11 +115,15 @@
   changing coverage cancels out. Tags collapsed to the base name; pick any model to add or drop it.</p>
   <div class="card">
     <div class="controls">
+      <button id="model-ver" aria-pressed="true">By version</button>
+      <button id="model-fam" aria-pressed="false">By family</button>
+      <span class="spacer"></span>
       <select id="model-pick"></select>
       <button id="model-reset">Reset to top 6</button>
     </div>
     <div id="models"></div>
     <div class="legend" id="models-legend"></div>
+    <p class="note" id="models-note"></p>
   </div>
 </section>
 
@@ -134,9 +138,16 @@
   counted anywhere on this page.</p>
   <p class="note">The gap is the chart. A model far to the right of its download share is
   one people leave running; far to the left, one they pull and move on from.</p>
+  <p class="note">A pull count only ever goes up, so over the whole library the oldest
+  models win by having been there longest and nothing recent can rank at all.
+  <b>Published in the last year</b> renormalises both sides over a recent cohort, which is
+  where adoption is actually visible.</p>
   <div class="card">
     <div class="controls">
       <button id="pulls-strict" aria-pressed="false">Exclude questionable</button>
+      <span class="spacer"></span>
+      <button id="pulls-all" aria-pressed="true">All models</button>
+      <button id="pulls-new" aria-pressed="false">Published in the last year</button>
       <span class="spacer"></span>
       <button id="pulls-bydl" aria-pressed="true">Rank by downloads</button>
       <button id="pulls-bygap" aria-pressed="false">Rank by gap</button>
@@ -144,6 +155,31 @@
     <div id="pulls"></div>
     <div class="legend" id="pulls-legend"></div>
     <p class="note" id="pulls-note"></p>
+  </div>
+</section>
+
+<section>
+  <h2>Old daemons serving new models</h2>
+  <p class="note">You generally have to update Ollama to run a newly published model:
+  new architectures land in the daemon first. Each row below is one model. The diamond
+  marks when it was published; the circles are the release dates of the Ollama daemons
+  found serving it, sized by how many hosts. Where a circle sits far to the left of its
+  diamond, somebody put a new model on an old machine, well after the box was built.</p>
+  <p class="note">Daemon dates come from the tag history of the Ollama repository. Model
+  release dates come from
+  <a href="https://artificialanalysis.ai/leaderboards/models">Artificial Analysis</a> —
+  deliberately not from ollama.com, whose date is a last-updated stamp that is wrong by
+  months and dates qwen3.5 and qwen3.6 to the same day when they are six weeks apart. Rows are the tagged name, since
+  <code>qwen3.6:27b</code> and <code>qwen3.6:35b</code> shipped six days apart. This covers
+  the <span id="lag-n"></span> hosts of the daily live probe that report a version and run a
+  model the catalogue dates.</p>
+  <div class="card">
+    <div class="controls">
+      <span class="note" style="margin:0">hover a row for its daemon spread</span>
+    </div>
+    <div id="lag"></div>
+    <div class="legend" id="lag-legend"></div>
+    <p class="note" id="lag-note"></p>
   </div>
 </section>
 <section>
@@ -448,7 +484,7 @@
   <p class="note"><b>Total</b> deduplicates a server seen by both.
   Model tags ending <code>-cloud</code> are dropped throughout, since those proxy to
   Ollama's hosted service and commit no weights, disk or GPU on the reporting machine. They
-  are 3.1% of installs but 33% of everything at 90B parameters and above.</p>
+  are 2.7% of installs but 32% of everything at 90B parameters and above.</p>
   <p class="note"><b>Collapse duplicates</b> also folds together groups of 50+ addresses reporting the same
   model list on the same day.</p>
   <div class="card">
@@ -475,7 +511,11 @@
   swamp everything. It is the basis of Chapter 2, because scanning indiscriminately is what
   makes the responders visible.</p>
   <p>IP geolocation by <a href="https://db-ip.com">DB-IP</a>
-  (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>). Lab attribution
+  (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>). Model release
+  dates from <a href="https://artificialanalysis.ai/leaderboards/models">Artificial
+  Analysis</a>. Model sizes and download counts from
+  <a href="https://ollama.com/library">ollama.com/library</a>. Ollama release dates from the
+  <a href="https://github.com/ollama/ollama">ollama/ollama</a> tag history. Lab attribution
   is by base-model lineage, so a community re-upload counts for the lab that trained the
   model it came from.</p>
   <p>The Chapter 1 survey comes entirely from public commit logs, and nothing was queried

@@ -176,7 +176,7 @@
 "updated": "Sep 27, 2025 12:46 AM UTC"
 },
 "deepseek-v4-flash": {
-"pulls": 430500,
+"pulls": 430600,
 "tags": 2,
 "updated": "Aug 1, 2026 5:21 AM UTC"
 },
@@ -246,7 +246,7 @@
 "updated": "Dec 27, 2023 8:51 PM UTC"
 },
 "exaone-deep": {
-"pulls": 765500,
+"pulls": 765600,
 "tags": 13,
 "updated": "Mar 19, 2025 5:04 PM UTC"
 },
@@ -326,7 +326,7 @@
 "updated": "Aug 28, 2026 3:00 PM UTC"
 },
 "glm-5.3-flash": {
-"pulls": 94800,
+"pulls": 95000,
 "tags": null,
 "updated": "Aug 26, 2026 2:00 PM UTC"
 },
@@ -411,12 +411,12 @@
 "updated": "Oct 29, 2025 1:53 PM UTC"
 },
 "granite4.1": {
-"pulls": 412100,
+"pulls": 412200,
 "tags": 48,
 "updated": "May 19, 2026 9:58 PM UTC"
 },
 "granite4.1-guardian": {
-"pulls": 14700,
+"pulls": 14800,
 "tags": 16,
 "updated": "Jun 10, 2026 9:07 PM UTC"
 },
@@ -451,7 +451,7 @@
 "updated": "Jul 27, 2026 3:53 PM UTC"
 },
 "laguna-s-2.1": {
-"pulls": 129600,
+"pulls": 129699,
 "tags": 8,
 "updated": "Aug 28, 2026 6:53 PM UTC"
 },
@@ -561,7 +561,7 @@
 "updated": "May 7, 2024 9:01 PM UTC"
 },
 "llava-phi3": {
-"pulls": 328400,
+"pulls": 328500,
 "tags": 4,
 "updated": "May 7, 2024 9:20 PM UTC"
 },
@@ -586,12 +586,12 @@
 "updated": "Jul 16, 2024 5:04 PM UTC"
 },
 "medgemma": {
-"pulls": 356900,
+"pulls": 357100,
 "tags": 9,
 "updated": "Apr 16, 2026 12:08 AM UTC"
 },
 "medgemma1.5": {
-"pulls": 167800,
+"pulls": 167900,
 "tags": 5,
 "updated": "Apr 16, 2026 12:04 AM UTC"
 },
@@ -701,7 +701,7 @@
 "updated": "May 7, 2024 9:18 PM UTC"
 },
 "muse-glimmer": {
-"pulls": 193200,
+"pulls": 193300,
 "tags": 15,
 "updated": "Aug 28, 2026 7:09 PM UTC"
 },
@@ -716,7 +716,7 @@
 "updated": "Oct 16, 2024 11:10 PM UTC"
 },
 "nemotron-3-nano": {
-"pulls": 809300,
+"pulls": 809500,
 "tags": 9,
 "updated": "Mar 16, 2026 3:34 PM UTC"
 },
@@ -726,12 +726,12 @@
 "updated": "Mar 11, 2026 4:00 PM UTC"
 },
 "nemotron-3-ultra": {
-"pulls": 82700,
+"pulls": 82800,
 "tags": null,
 "updated": "Jun 4, 2026 12:00 AM UTC"
 },
 "nemotron-3.5-lightning": {
-"pulls": 154300,
+"pulls": 154400,
 "tags": 11,
 "updated": "Aug 31, 2026 9:05 PM UTC"
 },
@@ -761,7 +761,7 @@
 "updated": "Jan 17, 2024 7:53 PM UTC"
 },
 "nomic-embed-text": {
-"pulls": 84800000,
+"pulls": 84900000,
 "tags": 3,
 "updated": "Feb 21, 2024 5:26 PM UTC"
 },
@@ -856,12 +856,12 @@
 "updated": "Nov 22, 2023 10:13 PM UTC"
 },
 "ornith": {
-"pulls": 465000,
+"pulls": 465100,
 "tags": 9,
 "updated": "Jun 27, 2026 8:45 PM UTC"
 },
 "ornith-1.5": {
-"pulls": 296700,
+"pulls": 296800,
 "tags": 3,
 "updated": "Aug 19, 2026 6:06 PM UTC"
 },
@@ -986,7 +986,7 @@
 "updated": "Aug 14, 2026 4:54 PM UTC"
 },
 "qwen3.8-flash-next": {
-"pulls": 88600,
+"pulls": 88900,
 "tags": 6,
 "updated": "Sep 5, 2026 5:55 PM UTC"
 },
@@ -1006,7 +1006,7 @@
 "updated": "Sep 11, 2024 7:13 PM UTC"
 },
 "reflection": {
-"pulls": 616700,
+"pulls": 616800,
 "tags": 17,
 "updated": "Sep 9, 2024 5:16 AM UTC"
 },

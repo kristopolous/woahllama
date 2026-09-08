@@ -10,7 +10,14 @@ Deduplicating the union on (service, host, probe day) turns the five files into
 one set of dated online sightings.
 
 The surveys cover several inference servers, not just Ollama; the service is kept
-so the Ollama subset can be selected downstream. Real IPs -> gitignored."""
+so the Ollama subset can be selected downstream. Only service='ollama' is ever
+allowed to cross into survey.db - the comfyui/gradio/vllm rows are parsed here
+because this table is a faithful copy of the capture, and go no further.
+
+Besides the model list each row carries the daemon's self-reported `version` and
+a geo/ASN block. Both are kept: the version is what the Ollama-release-date
+correlation runs on, and the country/ASN fields place hosts that geo.py cannot,
+since the db-ip CSV is not in the repo. Real IPs -> gitignored."""
 import os, json, glob, sqlite3, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,12 +53,21 @@ def main():
           PRIMARY KEY(service, host, day));
       CREATE INDEX IF NOT EXISTS idx_daily_day ON daily_probe(day);
     """)
+    # widen an existing table in place rather than rebuilding it: the rows
+    # already stored are the only copy of sightings the rolling capture has
+    # since aged out.
+    have = {r[1] for r in c.execute("PRAGMA table_info(daily_probe)")}
+    for col in ("version", "country", "asn", "as_org", "provider"):
+        if col not in have:
+            c.execute(f"ALTER TABLE daily_probe ADD COLUMN {col} TEXT")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_daily_ver ON daily_probe(version)")
     # Seed from what is already stored. The scanner cache that produces these
     # files ages rows out: `4a8621dd9470.json` is a rolling snapshot overwritten
     # in place, so a sighting captured last week may exist in no file today.
     # Rebuilding the table from disk would silently delete it, so accumulate.
     best = {}   # (service, host:port, day) -> row, keeping the latest check
-    for row in c.execute("SELECT service,host,port,day,checked,url,models FROM daily_probe"):
+    for row in c.execute("SELECT service,host,port,day,checked,url,models,"
+                         "version,country,asn,as_org,provider FROM daily_probe"):
         best[(row[0], row[1], row[3])] = row
     carried = len(best)
     for f in files:
@@ -71,11 +87,24 @@ def main():
             hp, day = f"{h}:{port}", ck[:10]
             k = (svc, hp, day)
             models = json.dumps(sorted(set(o.get("models") or [])))
+            asn = o.get("asn")
+            row = (svc, hp, port, day, ck, o.get("url") or "", models,
+                   o.get("version") or None, o.get("country") or None,
+                   str(asn) if asn not in (None, "") else None,
+                   o.get("as_org") or None, o.get("provider") or None)
             cur = best.get(k)
-            if cur is None or ck > cur[4]:
-                best[k] = (svc, hp, port, day, ck, o.get("url") or "", models)
+            if cur is None or ck >= cur[4]:
+                best[k] = row
+            else:
+                # An older capture can still carry a field a newer row lacks -
+                # and rows stored before this script kept version/country have
+                # them all NULL - so backfill rather than discard.
+                best[k] = cur[:7] + tuple(c if c is not None else n
+                                          for c, n in zip(cur[7:], row[7:]))
 
-    c.executemany("INSERT OR REPLACE INTO daily_probe VALUES (?,?,?,?,?,?,?)", best.values())
+    c.executemany("INSERT OR REPLACE INTO daily_probe(service,host,port,day,checked,url,"
+                  "models,version,country,asn,as_org,provider)"
+                  " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", best.values())
     con.commit()
     print(f"daily_probe: {len(files)} files + {carried} already stored"
           f" -> {len(best)} dated sightings ({len(best)-carried} new)", file=sys.stderr)
@@ -87,6 +116,12 @@ def main():
         f"{d}={n}" for d, n in c.execute(
             "SELECT day, COUNT(*) FROM daily_probe WHERE service='ollama'"
             " GROUP BY day ORDER BY day")), file=sys.stderr)
+    nv, nc, nh = c.execute(
+        "SELECT COUNT(DISTINCT CASE WHEN version IS NOT NULL THEN host END),"
+        " COUNT(DISTINCT CASE WHEN country IS NOT NULL THEN host END),"
+        " COUNT(DISTINCT host) FROM daily_probe WHERE service='ollama'").fetchone()
+    print(f"   ollama hosts with a version: {nv}/{nh}   with a country: {nc}/{nh}",
+          file=sys.stderr)
     con.close()
 
 

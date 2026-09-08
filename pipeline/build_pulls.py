@@ -14,13 +14,37 @@ that tried a model once. The survey side is a point-in-time census of machines
 left exposed to the internet. So a gap is not by itself evidence of anything; it
 is the question the chart poses, not its answer.
 
+Because the pull count only ever goes up, the all-models view is dominated by
+whatever has been on the library longest, and a recent model cannot rank however
+fast it is being adopted. Dividing by the model's age does not fix that - the
+library's date is a *last updated* stamp, so for an old model the denominator is
+time since it was last re-pushed, which has nothing to do with the window the
+pulls accumulated over. The honest fixes are both here instead:
+
+  * a recency cohort, where both sides are renormalised over only the models
+    published or refreshed within a window, so recent models are compared with
+    each other rather than with a three-year-old default;
+  * a true delta, once library_pulls.json holds two or more fetch days, which is
+    the only way to measure pulls *now* rather than pulls ever. It appears on
+    its own as soon as a second snapshot exists.
+
 Writes site/data/pulls.json."""
-import json, pathlib, sqlite3, sys
+import json, pathlib, sqlite3, sys, datetime, re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data"
 CACHE = ROOT / "pipeline" / "library_pulls.json"
 EXCLUDE_SOURCES = {"ollamaspider"}
+
+_MONTH = {m: i + 1 for i, m in enumerate(
+    "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split())}
+_UPD = re.compile(r"^([A-Z][a-z]{2}) (\d{1,2}), (\d{4})")
+
+
+def upd_date(s):
+    m = _UPD.match(s or "")
+    return (datetime.date(int(m.group(3)), _MONTH[m.group(1)], int(m.group(2)))
+            if m else None)
 
 
 def main():
@@ -55,6 +79,42 @@ def main():
         if svid not in questionable:
             obs_clean.setdefault(base, set()).add(svid)
 
+    # Age from the real release date (pipeline/model_releases.py), not from
+    # ollama.com's last-updated stamp: that stamp dates qwen3.5 and qwen3.6 to
+    # the same day when they are six weeks apart, so a recency cohort built on
+    # it would be sorting by "recently re-pushed" instead of "recently released".
+    today = datetime.date.today()
+    rel_path = ROOT / "pipeline" / "model_releases.json"
+    released = {}
+    if rel_path.exists():
+        mr = json.loads(rel_path.read_text())
+        released = {n: e["date"] for n, e in mr["models"].items()
+                    if e["source"].startswith("catalogue")}
+    age, age_src = {}, {}
+    for name in lib:
+        d = None
+        if name in released:
+            d = datetime.date.fromisoformat(released[name])
+            age_src[name] = "catalogue"
+        else:
+            d = upd_date(lib[name].get("updated"))
+            age_src[name] = "ollama-updated" if d else None
+        age[name] = max((today - d).days, 1) if d else None
+
+    # A real rate needs two observations of the counter. Once there are, the
+    # delta is pulls that actually happened in a known window.
+    days = sorted(hist)
+    delta, delta_days = {}, 0
+    if len(days) >= 2:
+        prev, prev_day = hist[days[-2]], days[-2]
+        delta_days = max((datetime.date.fromisoformat(day)
+                          - datetime.date.fromisoformat(prev_day)).days, 1)
+        for name, m in lib.items():
+            if name in prev:
+                d = m["pulls"] - prev[name]["pulls"]
+                if d >= 0:
+                    delta[name] = d
+
     tot_pulls = sum(m["pulls"] for m in lib.values())
     tot_obs = sum(len(v) for v in obs.values())
     tot_obs_clean = sum(len(v) for v in obs_clean.values())
@@ -67,6 +127,10 @@ def main():
             "pulls": m["pulls"],
             "tags": m["tags"],
             "updated": m["updated"],
+            "age_days": age[name],
+            "age_source": age_src.get(name),
+            "released": released.get(name),
+            "delta_pulls": delta.get(name),
             "pull_share": m["pulls"] / tot_pulls,
             "servers": n,
             "servers_clean": nc,
@@ -80,6 +144,9 @@ def main():
         "fetched": day,
         "n_models": len(rows),
         "total_pulls": tot_pulls,
+        "snapshot_days": days,
+        "delta_days": delta_days,
+        "has_delta": bool(delta),
         "total_servers": tot_obs,
         "total_servers_clean": tot_obs_clean,
         "models": rows,
@@ -87,6 +154,19 @@ def main():
 
     print(f"  pulls.json     {len(rows)} models  {tot_pulls/1e9:.2f}B pulls vs "
           f"{tot_obs:,} installs ({tot_obs_clean:,} excluding questionable)")
+    if delta:
+        print(f"  delta available: {len(delta)} models over {delta_days}d "
+              f"({days[-2]} -> {days[-1]})")
+    else:
+        print(f"  delta view: needs a second fetch day (have {len(days)}: "
+              f"{', '.join(days)})")
+    ncat = sum(1 for r in rows if r["age_source"] == "catalogue")
+    print(f"  dates: {ncat} from the release catalogue, "
+          f"{len(rows) - ncat} falling back to ollama.com's updated stamp")
+    for cut in (365, 180, 90):
+        c = [r for r in rows if r["age_days"] and r["age_days"] <= cut and r["servers"]]
+        print(f"  cohort <= {cut}d: {len(c):3} models, "
+              f"{sum(r['servers'] for r in c):,} installs")
     print(f"  {'model':22} {'pull%':>7} {'obs%':>7} {'ratio':>7}   "
           f"{'obs% cl':>7} {'ratio':>7}")
     for r in rows[:12]:

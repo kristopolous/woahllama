@@ -129,3 +129,69 @@ if __name__ == "__main__":
             JOIN model_vendor mv ON mv.model_id=m.id WHERE mv.vendor='Community/other'
             ORDER BY m.id LIMIT 25""")]
     print("\n  unclassified sample:", unk[:14])
+
+
+# ---------------------------------------------------------------- families ---
+# A model's base name pins a generation, not a line: gemma3 is superseded by
+# gemma4, qwen3 by qwen3.5 and 3.6 and 3.8, llama3 by the muse models. Tracking
+# bases alone makes every series decay toward zero as its successor takes over,
+# which reads as "people are abandoning these models" when the mass has actually
+# moved one name to the right. The family is the line, so the two together say
+# whether a lineage is growing while a generation within it fades.
+#
+# Curated first, because the naming is not systematic enough to infer: `qwen2.5`
+# and `qwen3` are the same line, `qwen2.5-coder` is a different one, and
+# `deepseek-r1` versus `deepseek-v3` are separate lines that share a prefix.
+# `V` is the generation suffix every one of these names carries in some form:
+# gemma3, qwen2.5, phi4-mini, glm-5.2, llama3.2-vision. Matching it once here
+# keeps the rules about the *line* rather than about punctuation.
+V = r"(?:[-.]?\d[\d.]*)"
+
+FAMILY_RULES = [
+    # more specific lines first: a coder or vision variant is its own line, not
+    # a generation of the base model
+    ("Qwen coder",     rf"^qwen{V}?-?coder"),
+    ("Qwen VL",        rf"^qwen{V}?-?(vl|omni)"),
+    ("Qwen",           rf"^qwen{V}?$|^qwq{V}?$|^qvq{V}?$"),
+    ("Code Llama",     r"^codellama"),
+    ("TinyLlama",      r"^tinyllama"),
+    ("Llama vision",   rf"^llama{V}-vision"),
+    ("Llama (Meta)",   rf"^llama{V}?$|^llama-guard|^muse($|{V}|-)"),
+    ("CodeGemma",      r"^codegemma"),
+    ("Gemma",          rf"^gemma{V}?$|^shieldgemma"),
+    ("DeepSeek R",     r"^deepseek-r\d"),
+    ("DeepSeek coder", r"^deepseek-coder"),
+    ("DeepSeek V",     r"^deepseek-v\d"),
+    ("Mistral",        rf"^mistral{V}?$|^mixtral|^ministral|^mistral-(nemo|small|large|openorca)"),
+    ("Phi",            rf"^phi{V}?$|^phi{V}?-(mini|small|medium|vision|reasoning)"),
+    ("GLM",            rf"^glm{V}?$|^chatglm|^codegeex"),
+    ("GPT-OSS",        r"^gpt-oss"),
+    ("Granite",        rf"^granite{V}?$|^granite{V}?-(code|vision|moe|dense)"),
+    ("Nemotron",       r"^nemotron|^llama3[.\d]*-nemotron"),
+    ("Command",        r"^command-"),
+    ("SmolLM",         rf"^smollm{V}?$"),
+    ("Embeddings",     r"embed|^bge-|^e5-|^gte-|^snowflake-arctic-embed"),
+    # a hf.co/<user>/<repo> name is one community upload, not a lineage; they
+    # would otherwise each become their own single-member "family"
+    ("Hugging Face direct", r"^hf\.co/|^huggingface\.co/"),
+    ("LLaVA / vision", r"^llava|^bakllava|^moondream|^minicpm-v"),
+]
+FAMILY_COMPILED = [(v, re.compile(p, re.I)) for v, p in FAMILY_RULES]
+
+# strip a trailing generation number from an otherwise unmatched name, so
+# `ornith-1.5` and `ornith` land together without needing a rule each
+_GEN = re.compile(r"^(.*?)[-_]?\d+(\.\d+)*$")
+
+
+def family(base):
+    """The model line a base name belongs to. Falls back to the name with any
+    trailing generation number removed, and finally to the name itself."""
+    b = (base or "").strip().lower()
+    if not b:
+        return ""
+    for label, rx in FAMILY_COMPILED:
+        if rx.search(b):
+            return label
+    m = _GEN.match(b)
+    stem = m.group(1) if m and len(m.group(1)) >= 3 else b
+    return stem

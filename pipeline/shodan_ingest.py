@@ -28,7 +28,12 @@ def parse(path):
     return out
 
 def main():
-    files = glob.glob(os.path.join(G, "shodan-results-*.txt"))
+    files = (glob.glob(os.path.join(G, "shodan-results-*.txt"))
+             + glob.glob(os.path.join(G, "graflex", "*", "shodan", "*.txt")))
+    # per-run captures name the service; only Ollama belongs in this survey
+    files = [f for f in files
+             if "shodan-results-" in os.path.basename(f)
+             or os.path.basename(f).startswith("ollama-")]
     best = {}   # host -> row, keep most recent ts
     raw = 0
     for f in files:

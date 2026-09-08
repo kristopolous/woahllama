@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -44,6 +44,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     vendorChart(vendors, counts);
     modelChart(models);
     pullsChart(pulls);
+    lagChart(lag);
     geoChart(geo);
     worldMap(world, mapd);
     bubbles(octets);
@@ -257,40 +258,73 @@ function vendorChart(vendors, counts) {
 }
 
 /* ------------------------------------------------------------------ models */
-let modelPick = null;
+/* A base name pins one generation. gemma3 is superseded by gemma4, qwen3 by
+   qwen3.6 and 3.8, llama3 by the muse models - so tracking bases makes every
+   line decay toward zero as its successor arrives, which reads as people
+   abandoning these models when the mass has only moved one name along. The
+   family view follows the lineage instead, and the difference between the two
+   views is the actual story. */
+let modelFam = false;
+
 function modelChart(models, keep) {
-  const names = Object.keys(models.clean);
-  const peak = n => Math.max(...models.clean[n]);
-  if (!modelPick || !keep) modelPick = names.slice().sort((a, b) => peak(b) - peak(a)).slice(0, 6);
-  const sel = $('model-pick');
-  if (!sel.options.length) {
-    sel.innerHTML = '<option value="">Add a model…</option>' + names.slice()
-      .sort((a, b) => peak(b) - peak(a))
+  const src = modelFam
+    ? { clean: models.fam_clean, all: models.fam_all }
+    : { clean: models.clean, all: models.all };
+  const names = Object.keys(src.clean);
+  const peak = n => Math.max(...src.clean[n]);
+  const pick = modelFam ? 'famPick' : 'verPick';
+  if (!modelChart[pick] || !keep) {
+    modelChart[pick] = names.slice().sort((a, b) => peak(b) - peak(a)).slice(0, 6);
+  }
+  let sel = $('model-pick');
+  // the option list belongs to whichever view is showing
+  if (sel.dataset.mode !== String(modelFam)) {
+    sel.dataset.mode = String(modelFam);
+    sel.innerHTML = `<option value="">Add a ${modelFam ? 'family' : 'model'}…</option>` +
+      names.slice().sort((a, b) => peak(b) - peak(a))
       .map(n => { const label = n.length > 30 ? n.slice(0, 29) + '…' : n;
         return `<option value="${n}">${label} · ${peak(n).toLocaleString()}</option>`; }).join('');
-    sel.onchange = () => {
-      if (sel.value && !modelPick.includes(sel.value)) modelPick = [...modelPick, sel.value].slice(-8);
-      sel.value = '';
-      modelChart(models, true);
-    };
-    $('model-reset').onclick = () => { modelPick = null; modelChart(models); };
   }
-  // cohort denominator: total instances of the tracked models that day, so each
+  sel.onchange = () => {
+    const cur = modelChart[pick];
+    if (sel.value && !cur.includes(sel.value)) modelChart[pick] = [...cur, sel.value].slice(-8);
+    sel.value = '';
+    modelChart(models, true);
+  };
+  $('model-reset').onclick = () => { modelChart[pick] = null; modelChart(models); };
+  pair($('model-ver'), $('model-fam'), null, null, a => {
+    if (modelFam === !a) return;
+    modelFam = !a; modelChart(models, true);
+  });
+
+  // cohort denominator: total instances of the tracked names that day, so each
   // line is share-of-the-model-mix and the coverage collapse cancels out
-  const allM = Object.keys(models.clean);
-  const nd = models.clean[allM[0]].length;
+  const allM = Object.keys(src.clean);
+  const nd = src.clean[allM[0]].length;
   const cohort = Array.from({ length: nd }, (_, d) =>
-    allM.reduce((s, k) => s + models.clean[k][d], 0));
+    allM.reduce((s, k) => s + src.clean[k][d], 0));
   const share = arr => smooth(arr.map((v, d) => cohort[d] ? v / cohort[d] * 100 : 0));
-  const series = modelPick.map((n, i) => ({
-    name: n, color: SERIES_COLORS[i % 8], values: share(models.clean[n]),
+  const series = modelChart[pick].map((n, i) => ({
+    name: n, color: SERIES_COLORS[i % 8], values: share(src.clean[n]),
   }));
   timeChart($('models'), { ...models, series, height: 300,
     valueFormat: v => v.toFixed(1) + '%', yFormat: v => v + '%' });
   legend($('models-legend'), series, s => {
-    modelPick = modelPick.filter(n => n !== s.name);
+    modelChart[pick] = modelChart[pick].filter(n => n !== s.name);
     modelChart(models, true);
   });
+  const note = $('models-note');
+  if (note) {
+    note.innerHTML = modelFam
+      ? `Rolled up to the model line, so a generation handing over to its successor
+         stays inside one series${modelFam && models.fam_members && modelChart[pick].length
+           ? ` (${modelChart[pick][0]} covers ${(models.fam_members[modelChart[pick][0]] || []).slice(0, 4).join(', ')})`
+           : ''}. Share is of the tracked families that day.`
+      : `Each series is one base name, which is one generation of a model. A line
+         falling as its successor is released is the handover, not abandonment —
+         <b>By family</b> rolls gemma3 into gemma4, qwen3 into qwen3.8 and llama3 into
+         the muse models so the lineage is visible.`;
+  }
 }
 
 /* --------------------------------------------------------------- geography */
@@ -1619,20 +1653,27 @@ const PULLS_N = 22;
 function pullsChart(P) {
   const host = $('pulls');
   $('pulls-n').textContent = P.n_models;
-  let strict = false, byGap = false;
+  let strict = false, byGap = false, cohort = 0;   // cohort: 0 = all, else max age in days
 
   const C_PULL = 'var(--series-7)', C_OBS = 'var(--series-3)';
-  const share = m => strict ? m.obs_share_clean : m.obs_share;
   const count = m => strict ? m.servers_clean : m.servers;
+  // Shares are computed inside whichever cohort is showing, not once over the
+  // whole library, so restricting to recent models compares them with each
+  // other rather than leaving them as slivers next to a three-year-old default.
+  const inCohort = m => !cohort || (m.age_days && m.age_days <= cohort);
 
   const draw = () => {
     // Rank within the official library by download share, then take the head:
     // the tail is models with a handful of installs, where a share ratio is
     // noise. "By gap" re-sorts that same head so the disagreement leads.
-    const pool = P.models.filter(m => m.pull_share > 0).slice(0, 60)
-      .filter(m => count(m) > 0);
-    const ratio = m => share(m) / m.pull_share;
-    let rows = pool.slice().sort((a, b) => b.pull_share - a.pull_share).slice(0, PULLS_N);
+    const pool = P.models.filter(m => m.pulls > 0 && inCohort(m) && count(m) > 0);
+    // renormalise both sides over the cohort actually drawn from
+    const sumP = pool.reduce((s, m) => s + m.pulls, 0);
+    const sumO = pool.reduce((s, m) => s + count(m), 0);
+    const dl = m => (sumP ? m.pulls / sumP : 0);
+    const share = m => (sumO ? count(m) / sumO : 0);
+    const ratio = m => (dl(m) ? share(m) / dl(m) : 0);
+    let rows = pool.slice().sort((a, b) => dl(b) - dl(a)).slice(0, PULLS_N);
     if (byGap) rows.sort((a, b) => ratio(b) - ratio(a));
 
     const W = host.clientWidth || 1100;
@@ -1640,7 +1681,7 @@ function pullsChart(P) {
     const rowH = 24, ih = rows.length * rowH, H = M.t + ih + M.b;
     const iw = W - M.l - M.r;
 
-    const vals = rows.flatMap(m => [m.pull_share, share(m)]).filter(v => v > 0);
+    const vals = rows.flatMap(m => [dl(m), share(m)]).filter(v => v > 0);
     const lo = Math.min(...vals), hi = Math.max(...vals);
     const l0 = Math.floor(Math.log10(lo)), l1 = Math.ceil(Math.log10(hi));
     const X = v => M.l + (Math.log10(Math.max(v, Math.pow(10, l0))) - l0) / (l1 - l0) * iw;
@@ -1661,7 +1702,7 @@ function pullsChart(P) {
 
     rows.forEach((m, i) => {
       const y = M.t + rowH * i + rowH / 2;
-      const xp = X(m.pull_share), xo = X(share(m));
+      const xp = X(dl(m)), xo = X(share(m));
       const g = el('g');
       g.append(el('line', {
         x1: xp, x2: xo, y1: y, y2: y, 'stroke-width': 2.5, 'stroke-linecap': 'round',
@@ -1680,7 +1721,8 @@ function pullsChart(P) {
         `<div class="d">${m.name}</div>
          <table>
           <tr><td>pulls</td><td class="n">${fmtInt(m.pulls)}</td></tr>
-          <tr><td>share of all pulls</td><td class="n">${(100 * m.pull_share).toFixed(2)}%</td></tr>
+          <tr><td>published</td><td class="n">${m.updated ? m.updated.replace(/ \d+:.*$/, '') : '—'}</td></tr>
+          <tr><td>share of downloads</td><td class="n">${(100 * dl(m)).toFixed(2)}%</td></tr>
           <tr><td>servers running it</td><td class="n">${fmtInt(count(m))}</td></tr>
           <tr><td>share of all installs</td><td class="n">${(100 * share(m)).toFixed(2)}%</td></tr>
           <tr><td>installed vs pulled</td><td class="n">${r >= 1 ? r.toFixed(1) + '× more' : (1 / r).toFixed(1) + '× less'}</td></tr>
@@ -1702,9 +1744,11 @@ function pullsChart(P) {
 
     const up = rows.slice().sort((a, b) => ratio(b) - ratio(a));
     const nm = m => `<b>${m.name}</b> ${ratio(m) >= 1 ? ratio(m).toFixed(1) + '× more' : (1 / ratio(m)).toFixed(1) + '× less'}`;
-    const tot = strict ? P.total_servers_clean : P.total_servers;
+    const tot = sumO;
     $('pulls-note').innerHTML =
-      `${fmtInt(P.total_pulls)} pulls against ${fmtInt(tot)} installs on
+      `${cohort ? `The ${rows.length > 0 ? pool.length : 0} models published or refreshed in the
+                   last twelve months` : `All ${pool.length} official models`},
+       ${fmtInt(sumP)} downloads against ${fmtInt(tot)} installs on
        ${strict ? 'servers that pass Chapter 2’s tests' : 'every server we found'}.
        Most left running relative to downloads: ${nm(up[0])}, ${nm(up[1])}, ${nm(up[2])}.
        Least: ${nm(up[up.length - 1])}, ${nm(up[up.length - 2])}.
@@ -1715,13 +1759,164 @@ function pullsChart(P) {
         : `The phantom catalogue of Chapter 2 is itself made of library models, so the
            over-represented end of this chart is partly those machines. <b>Exclude questionable</b>
            takes them out.`}
-       Downloads are cumulative since each model was published and count re-pulls and CI;
-       installs are a census of one moment. The gap is the question, not the answer.`;
+       ${cohort
+        ? `Both sides are shares of this cohort only. A pull count never goes down, so over
+           the whole library the oldest models always win; restricting to recent ones
+           compares them with each other. The newest releases sit left of their download
+           share because deployment lags publication — they have been pulled, not yet left
+           running anywhere we can see.`
+        : `Downloads are a non-expiring accumulator running since each model was published,
+           so age alone lifts a model up this list and nothing recent can rank.
+           <b>Published in the last year</b> restricts both sides to a cohort where that is
+           not true.`}
+       ${P.has_delta
+        ? `Downloads shown are the total; a per-window rate is available from the
+           ${P.delta_days}-day change between snapshots.`
+        : `Measuring downloads <i>now</i> rather than ever needs two readings of the counter;
+           this build has one (${P.snapshot_days[P.snapshot_days.length - 1]}), so that view
+           turns on after the next scrape.`}
+       Installs are a census of one moment. The gap is the question, not the answer.`;
   };
 
   pair($('pulls-bydl'), $('pulls-bygap'), null, null, a => { byGap = !a; draw(); });
+  pair($('pulls-all'), $('pulls-new'), null, null, a => { cohort = a ? 0 : 365; draw(); });
   const sb = $('pulls-strict');
   sb.onclick = () => { strict = !strict; sb.setAttribute('aria-pressed', strict); draw(); };
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+}
+
+/* ============== daemon age against the age of what it serves ============== */
+/* One row per model, time along x. The diamond is when the model was published;
+   the circles are the release dates of the Ollama daemons found serving it,
+   sized by how many hosts. Circles to the left of the diamond are daemons that
+   predate the model they are running, which is unremarkable for a model
+   published last week and is the whole point for one published two years ago. */
+function lagChart(L) {
+  const host = $('lag');
+  $('lag-n').textContent = fmtInt(L.n_hosts);
+  const YEAR = 12;   // months
+
+  const draw = () => {
+    const W = host.clientWidth || 1100;
+    const M = { t: 26, r: 26, b: 54, l: 168 };
+    const rowH = 30, ih = L.matrix.length * rowH, H = M.t + ih + M.b;
+    const iw = W - M.l - M.r;
+    const nM = L.months.length;
+    const X = i => M.l + (nM <= 1 ? iw / 2 : (i / (nM - 1)) * iw);
+
+    const maxN = Math.max(...L.matrix.flatMap(r => r.cells.map(c => c[1])));
+    const R = n => 2.2 + Math.sqrt(n / maxN) * 9;
+
+    const C_OK = 'var(--series-1)';    // daemon newer than the model
+    const C_OLD = 'var(--series-2)';   // daemon predates the model
+    const C_HOT = 'var(--series-8)';   // predates it by a year or more
+    const C_MARK = 'var(--series-7)';
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H });
+    const grid = el('g', { class: 'grid' }), axis = el('g', { class: 'axis' });
+    L.months.forEach((m, i) => {
+      if (!m.endsWith('-01') && !m.endsWith('-07')) return;
+      grid.append(el('line', { x1: X(i), x2: X(i), y1: M.t - 6, y2: M.t + ih }));
+      axis.append(el('text', { x: X(i), y: M.t + ih + 18, 'text-anchor': 'middle' },
+        m.endsWith('-01') ? m.slice(0, 4) : 'Jul'));
+    });
+    svg.append(grid, axis);
+
+    L.matrix.forEach((r, i) => {
+      const y = M.t + rowH * i + rowH / 2;
+      const g = el('g');
+      // a faint rule so the eye can run along one model's row
+      g.append(el('line', { x1: M.l, x2: W - M.r, y1: y, y2: y,
+                            stroke: 'var(--text-muted)', opacity: .18 }));
+      const rel = r.released_i;
+      for (const [mi, n] of r.cells) {
+        const old = rel != null && mi < rel;
+        const hot = rel != null && mi < rel - YEAR;
+        g.append(el('circle', {
+          cx: X(mi), cy: y, r: R(n),
+          fill: hot ? C_HOT : old ? C_OLD : C_OK,
+          opacity: hot ? .95 : .62,
+        }));
+      }
+      if (rel != null) {
+        // the model's own publication date
+        g.append(el('path', {
+          d: `M${X(rel)} ${y - 9} L${X(rel) + 6} ${y} L${X(rel)} ${y + 9} L${X(rel) - 6} ${y} Z`,
+          fill: C_MARK, stroke: 'var(--surface-1)', 'stroke-width': 1.5,
+        }));
+      }
+      axis.append(el('text', {
+        x: M.l - 14, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-primary)', style: 'font-size:11.5px',
+      }, r.name.length > 22 ? r.name.slice(0, 21) + '…' : r.name));
+
+      const hit = el('rect', { x: 0, y: y - rowH / 2, width: W, height: rowH,
+                               fill: 'transparent' });
+      hit.addEventListener('mousemove', ev => showTip(
+        `<div class="d">${r.name}</div>
+         <table>
+          <tr><td>published</td><td class="n">${r.released}</td></tr>
+          <tr><td>hosts serving it</td><td class="n">${fmtInt(r.hosts)}</td></tr>
+          <tr><td>median daemon</td><td class="n">${r.med_daemon}</td></tr>
+          <tr><td>oldest tenth</td><td class="n">${r.p10_daemon} or older</td></tr>
+          <tr><td>daemon 1yr+ older</td><td class="n">${fmtInt(r.older12)} · ${(100 * r.older12 / r.hosts).toFixed(0)}%</td></tr>
+         </table>`, ev));
+      hit.addEventListener('mouseleave', hideTip);
+      g.append(hit);
+      svg.append(g);
+    });
+    axis.append(el('text', { x: M.l + iw / 2, y: H - 8, 'text-anchor': 'middle' },
+      'release date of the Ollama daemon serving it — circle size is hosts'));
+    svg.append(axis);
+    host.replaceChildren(svg);
+
+    legend($('lag-legend'), [
+      { name: 'Daemon released after the model', color: C_OK },
+      { name: 'Daemon predates the model', color: C_OLD },
+      { name: 'Daemon predates it by a year or more', color: C_HOT },
+      { name: 'Model published', color: C_MARK },
+    ]);
+
+    // a rate over a handful of hosts is noise; require a real population
+    // before calling a row the outlier
+    const MIN_CLAIM = 100;
+    const big = L.matrix.filter(r => r.hosts >= MIN_CLAIM);
+    const worst = big.slice().sort((a, b) =>
+      (b.older12 / b.hosts) - (a.older12 / a.hosts))[0] || L.matrix[0];
+    // compare against contemporaries, not against a model from two years earlier:
+    // a 2024 model would need a 2023 daemon to register here at all
+    const days = (a, b) => Math.abs((new Date(a) - new Date(b)) / 86400e3);
+    const peers = big.filter(r => r !== worst && days(r.released, worst.released) <= 150)
+      .sort((a, b) => b.hosts - a.hosts).slice(0, 2);
+    const top = L.top_notable[0];
+    $('lag-note').innerHTML =
+      `Reading a row left to right: the diamond is when the model was released, the circles
+       are the vintages of Ollama found running it. Most rows sit mostly to the right of
+       their diamond — the daemon is newer than what it serves, which is what you get when
+       a machine is built once and left alone. Across the probe the median host runs a
+       daemon released <b>${Math.abs(L.median_lag)} days after</b> the newest model on it.
+       <b>${worst.name}</b> is the exception worth looking at:
+       ${(100 * worst.older12 / worst.hosts).toFixed(0)}% of its ${fmtInt(worst.hosts)} hosts
+       run a daemon released more than a year before the model existed${peers.length
+        ? `, against ${peers.map(r => `${r.name} at
+           ${(100 * r.older12 / r.hosts).toFixed(0)}%`).join(' and ')} — released within
+           weeks of it, on comparable numbers of machines` : ''}.
+       Across the whole probe ${fmtInt(L.n_notable)} hosts
+       (${(100 * L.notable_share).toFixed(0)}%) serve something released twelve months or
+       more after their daemon shipped; the extreme is v${top.version} from ${top.daemon}
+       running ${top.newest_model} from ${top.newest_model_date}.
+       That tail is <i>not</i> the responder fleet of Chapter 2 — it carries flagged
+       machines at about the same rate as the rest of the probe.
+       Release dates come from
+       <a href="https://artificialanalysis.ai/leaderboards/models">Artificial Analysis</a>,
+       not from ollama.com,
+       whose date is a last-updated stamp that puts qwen3.5 and qwen3.6 on the same day
+       when they are six weeks apart. Models the catalogue does not cover are left out
+       rather than dated from when hosts were seen pulling them, which would be circular.
+       ${L.unmatched_version} hosts reporting an invented version
+       (<code>hello</code>, <code>sample</code>, <code>0.0.0-observation</code>) are excluded.`;
+  };
   draw();
   addEventListener('resize', debounce(draw, 150));
 }
