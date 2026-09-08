@@ -158,7 +158,7 @@ FAMILY_RULES = [
     ("Llama vision",   rf"^llama{V}-vision"),
     ("Llama (Meta)",   rf"^llama{V}?$|^llama-guard|^muse($|{V}|-)"),
     ("CodeGemma",      r"^codegemma"),
-    ("Gemma",          rf"^gemma{V}?$|^shieldgemma"),
+    ("Gemma",          rf"^gemma{V}?n?$|^shieldgemma"),
     ("DeepSeek R",     r"^deepseek-r\d"),
     ("DeepSeek coder", r"^deepseek-coder"),
     ("DeepSeek V",     r"^deepseek-v\d"),
@@ -183,15 +183,47 @@ FAMILY_COMPILED = [(v, re.compile(p, re.I)) for v, p in FAMILY_RULES]
 _GEN = re.compile(r"^(.*?)[-_]?\d+(\.\d+)*$")
 
 
+# A community re-upload keeps the lineage it was built from: an abliterated or
+# uncensored Qwen is still Qwen, and letting `huihui_ai/qwen3.8-abliterated`
+# become its own one-member "family" fragments the very line the chart is for.
+# `hf.co/...` keeps its own bucket because those names are arbitrary and rarely
+# name a lineage at all.
+_UPLOADER = re.compile(r"^(?!hf\.co/|huggingface\.co/)[a-z0-9_.-]+/")
+_VARIANT = re.compile(
+    r"[-_](abliterated|uncensored|instruct|distill(ed)?|lorablated|imatrix|"
+    r"gguf|q\d[_a-z0-9]*|i?q\d+[_a-z0-9]*)\b.*$")
+
+
+def _match(name):
+    """Try the family rules against the name, then against progressively shorter
+    dash-prefixes of it. `google/gemma-4-26b-a4b` reduces to `gemma-4`, which is
+    Gemma; without the shortening the size suffix hides the lineage."""
+    parts = name.split("-")
+    for cut in range(len(parts), 0, -1):
+        candidate = "-".join(parts[:cut])
+        for label, rx in FAMILY_COMPILED:
+            if rx.search(candidate):
+                return label
+    return None
+
+
 def family(base):
-    """The model line a base name belongs to. Falls back to the name with any
+    """The model line a base name belongs to. Community re-uploads fold into the
+    line they were derived from; otherwise falls back to the name with any
     trailing generation number removed, and finally to the name itself."""
     b = (base or "").strip().lower()
     if not b:
         return ""
-    for label, rx in FAMILY_COMPILED:
-        if rx.search(b):
-            return label
+    hit = _match(b)
+    if hit:
+        return hit
+    # `huihui_ai/qwen3.8-abliterated` -> `qwen3.8` -> Qwen
+    stripped = _VARIANT.sub("", _UPLOADER.sub("", b)).strip("-_")
+    if stripped and stripped != b:
+        hit = _match(stripped)
+        if hit:
+            return hit
+        b = stripped
     m = _GEN.match(b)
     stem = m.group(1) if m and len(m.group(1)) >= 3 else b
     return stem

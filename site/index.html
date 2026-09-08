@@ -110,16 +110,18 @@
   </div>
 </section>
 <section>
-  <h2>Individual models</h2>
-  <p class="note">Each model as a share of the exposed servers over time, so the survey's
-  changing coverage cancels out. Tags collapsed to the base name; pick any model to add or drop it.</p>
+  <h2>Model lineages</h2>
+  <p class="note">Each lineage as a share of the exposed servers over time, so the survey's
+  changing coverage cancels out. A lineage follows a model line through its generations —
+  gemma3 into gemma4, qwen3 into qwen3.6 and 3.8, llama3 into the muse models — because
+  tracking a single release only ever shows it being replaced. Pick any lineage to add or
+  drop it.</p>
   <div class="card">
     <div class="controls">
-      <button id="model-ver" aria-pressed="true">By version</button>
-      <button id="model-fam" aria-pressed="false">By family</button>
-      <span class="spacer"></span>
       <select id="model-pick"></select>
       <button id="model-reset">Reset to top 6</button>
+      <span class="spacer"></span>
+      <button id="model-loose" aria-pressed="false">Include questionable hosts</button>
     </div>
     <div id="models"></div>
     <div class="legend" id="models-legend"></div>
@@ -311,6 +313,23 @@
   coordinated deployment, a honeypot, or a badly broken configuration copied onto thousands
   of machines and forgotten. This chapter lays out what was observed and stops there.</p>
 </div>
+<section>
+  <h2>It arrives in waves</h2>
+  <p class="note">The phantom catalogue is not a constant background. Counted as a share of
+  everything visible on the same day — so the survey's own changing coverage cancels out —
+  the fleet appears from nothing in April 2025, peaks that summer, very nearly disappears
+  over the winter, and then comes back through 2026 larger than the first time.</p>
+  <p class="note">Whatever this is, it is not a one-off misconfiguration that has been
+  sitting there since 2025. Something turned it off and something turned it back on.</p>
+  <div class="card">
+    <div class="controls">
+      <button id="wave-share" aria-pressed="true">Share of population</button>
+      <button id="wave-count" aria-pressed="false">Host count</button>
+    </div>
+    <div id="wave"></div>
+    <p class="note" id="wave-note"></p>
+  </div>
+</section>
 <section>
   <h2>Hundreds of hosts answering as Ollama</h2>
   <p class="note">OllamaSpider scrapes Shodan and grabs endpoints on ports that were never Ollama. The

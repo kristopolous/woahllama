@@ -140,11 +140,16 @@ are excluded from vendor attribution while remaining visible everywhere else —
 they are Chapter 2's subject matter. Community merges that merely mention a
 commercial name keep their attribution.
 
-**Model versions versus model families.** A base name pins one generation, so
-every series decays as its successor arrives and the chart reads as universal
-abandonment. `vendors.family` rolls a generation into its line — gemma3 into
-gemma4, qwen3 into qwen3.8, llama3 into the muse models — and the page offers
-both views, because the difference between them is the actual story.
+**Lineages, not versions.** A base name pins one generation, so tracking base
+names makes every series decay toward zero as its successor ships — an artefact
+of the namespace growing, not operators walking away. `vendors.family` rolls a
+generation into its line (gemma3 into gemma4, qwen3 into qwen3.6 and 3.8, llama3
+into the muse models, and community re-uploads such as
+`huihui_ai/qwen3.8-abliterated` back into Qwen), and the chart tracks that. It
+excludes embedding models and the tiny demo models, which answer a different
+question, along with Chapter 2's scratch and closed-weights names, which are not
+a model line at all. With those out the lines move in both directions: Qwen rises
+from 14.8% to 20.7% and passes Llama, while DeepSeek R falls from 22.9% to 9.3%.
 
 **Downloads are not deployments.** ollama.com publishes a cumulative pull count
 per model. It counts a different act from this survey, over a population three
@@ -158,6 +163,13 @@ page instead offers a recency cohort, renormalising both sides over the models
 refreshed in the last year. Measuring downloads *now* needs two readings of the
 counter; `library_pulls.json` keeps one snapshot per fetch day and the delta view
 turns on once a second exists.
+
+**The responder fleet is measured as a share, not a count.** Counting
+phantom-catalogue hosts on their own mostly tracks how hard the scanners were
+working that month. As a fraction of everything visible on the same day the
+coverage cancels, and what remains is a fleet that appeared in April 2025, peaked
+at 9.6% of the exposed population that May, fell to 0.2% by January 2026, and has
+climbed every month since to 11.5% — already larger than the first wave.
 
 **The most recent two days are trimmed**, since a half-finished day of scanning
 reads as a real drop in every trend.

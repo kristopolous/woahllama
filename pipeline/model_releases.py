@@ -121,15 +121,22 @@ def resolver(cat, by_stub):
         hits = prefix_hits(tw) if tw else []
         if hits:
             return min(hits), "catalogue-tag"
+        # Base name, meaning the tag said nothing about which variant (`:latest`,
+        # or no tag at all). Here the answer wanted is when the *line* first
+        # shipped, so take the minimum over every catalogue entry under it -
+        # NOT the record that happens to share the bare name. A stub-exact hit
+        # on `deepseek-r1` lands on the R1-0528 revision and dates the line to
+        # May 2025, five months after R1 actually shipped, which then makes
+        # hundreds of honest hosts look like they pulled it before it existed.
         base = (name or "").split(":")[0]
-        if stub(base) in by_stub:
-            return min(by_stub[stub(base)]), "catalogue"
         t = tokens(base)
         if not t:
             return None, None
-        if t in cat:
-            return min(cat[t]), "catalogue"
         hits = prefix_hits(t)
+        if t in cat:
+            hits = hits + cat[t]
+        if stub(base) in by_stub:
+            hits = hits + by_stub[stub(base)]
         return (min(hits), "catalogue-family") if hits else (None, None)
     return resolve
 

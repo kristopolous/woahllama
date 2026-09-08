@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -45,6 +45,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     modelChart(models);
     pullsChart(pulls);
     lagChart(lag);
+    waveChart(wave);
     geoChart(geo);
     worldMap(world, mapd);
     bubbles(octets);
@@ -259,71 +260,97 @@ function vendorChart(vendors, counts) {
 
 /* ------------------------------------------------------------------ models */
 /* A base name pins one generation. gemma3 is superseded by gemma4, qwen3 by
-   qwen3.6 and 3.8, llama3 by the muse models - so tracking bases makes every
+   qwen3.6 and 3.8, llama3 by the muse models — so tracking bases makes every
    line decay toward zero as its successor arrives, which reads as people
-   abandoning these models when the mass has only moved one name along. The
-   family view follows the lineage instead, and the difference between the two
-   views is the actual story. */
-let modelFam = false;
+   abandoning these models when the mass has only moved one name along. That is
+   an artefact of the namespace growing, not a finding, so this chart tracks the
+   lineage instead: a generation handing over to its successor stays inside one
+   series, and the line only moves when the lineage really does.
 
+   Embeddings and the tiny demo models are left out of the denominator: they
+   answer a different question from "which lineage is being run", and Chapter 2's
+   scratch names and closed-weights names are not a model line at all. */
 function modelChart(models, keep) {
-  const src = modelFam
-    ? { clean: models.fam_clean, all: models.fam_all }
-    : { clean: models.clean, all: models.all };
-  const names = Object.keys(src.clean);
-  const peak = n => Math.max(...src.clean[n]);
-  const pick = modelFam ? 'famPick' : 'verPick';
-  if (!modelChart[pick] || !keep) {
-    modelChart[pick] = names.slice().sort((a, b) => peak(b) - peak(a)).slice(0, 6);
+  // Default to the questionable-excluded series. Chapter 2's responder fleet
+  // advertises a fixed catalogue whose members are real model names, so leaving
+  // those machines in puts Code Llama and openchat — two of the six phantom
+  // names — above Gemma and Mistral, which is a fact about the fleet, not about
+  // what anybody is running.
+  const src = modelChart.loose ? models.fam_clean : (models.fam_strict || models.fam_clean);
+  const names = Object.keys(src);
+  const nd0 = src[names[0]].length;
+  // Rank by the last month rather than by all-time peak. A lineage that was
+  // big in 2025 and is gone now is not what the reader is looking at, and the
+  // peak ranking put the `hf.co/...` catch-all — which is not a lineage — into
+  // the default six.
+  const recent = n => {
+    const w = src[n].slice(Math.max(0, nd0 - 33), nd0 - 3);
+    return w.length ? w.reduce((a, b) => a + b, 0) / w.length : 0;
+  };
+  const ranked = names.slice().sort((a, b) => recent(b) - recent(a));
+  if (!modelChart.pick || !keep) {
+    modelChart.pick = ranked.filter(n => n !== 'Hugging Face direct').slice(0, 6);
   }
-  let sel = $('model-pick');
-  // the option list belongs to whichever view is showing
-  if (sel.dataset.mode !== String(modelFam)) {
-    sel.dataset.mode = String(modelFam);
-    sel.innerHTML = `<option value="">Add a ${modelFam ? 'family' : 'model'}…</option>` +
-      names.slice().sort((a, b) => peak(b) - peak(a))
+  const sel = $('model-pick');
+  if (!sel.options.length) {
+    sel.innerHTML = '<option value="">Add a lineage…</option>' + ranked
       .map(n => { const label = n.length > 30 ? n.slice(0, 29) + '…' : n;
-        return `<option value="${n}">${label} · ${peak(n).toLocaleString()}</option>`; }).join('');
+        return `<option value="${n}">${label} · ${Math.round(recent(n)).toLocaleString()}</option>`; }).join('');
   }
   sel.onchange = () => {
-    const cur = modelChart[pick];
-    if (sel.value && !cur.includes(sel.value)) modelChart[pick] = [...cur, sel.value].slice(-8);
+    if (sel.value && !modelChart.pick.includes(sel.value))
+      modelChart.pick = [...modelChart.pick, sel.value].slice(-8);
     sel.value = '';
     modelChart(models, true);
   };
-  $('model-reset').onclick = () => { modelChart[pick] = null; modelChart(models); };
-  pair($('model-ver'), $('model-fam'), null, null, a => {
-    if (modelFam === !a) return;
-    modelFam = !a; modelChart(models, true);
-  });
+  $('model-reset').onclick = () => { modelChart.pick = null; modelChart(models); };
+  const lb = $('model-loose');
+  if (lb) {
+    lb.setAttribute('aria-pressed', String(!!modelChart.loose));
+    lb.onclick = () => {
+      modelChart.loose = !modelChart.loose;
+      modelChart.pick = null;
+      $('model-pick').innerHTML = '';
+      modelChart(models);
+    };
+  }
 
-  // cohort denominator: total instances of the tracked names that day, so each
-  // line is share-of-the-model-mix and the coverage collapse cancels out
-  const allM = Object.keys(src.clean);
-  const nd = src.clean[allM[0]].length;
+  // cohort denominator: total instances of the tracked lineages that day, so
+  // each line is share-of-the-mix and the coverage collapse cancels out
+  const nd = src[names[0]].length;
   const cohort = Array.from({ length: nd }, (_, d) =>
-    allM.reduce((s, k) => s + src.clean[k][d], 0));
+    names.reduce((s, k) => s + src[k][d], 0));
   const share = arr => smooth(arr.map((v, d) => cohort[d] ? v / cohort[d] * 100 : 0));
-  const series = modelChart[pick].map((n, i) => ({
-    name: n, color: SERIES_COLORS[i % 8], values: share(src.clean[n]),
+  const series = modelChart.pick.map((n, i) => ({
+    name: n, color: SERIES_COLORS[i % 8], values: share(src[n]),
   }));
   timeChart($('models'), { ...models, series, height: 300,
     valueFormat: v => v.toFixed(1) + '%', yFormat: v => v + '%' });
   legend($('models-legend'), series, s => {
-    modelChart[pick] = modelChart[pick].filter(n => n !== s.name);
+    modelChart.pick = modelChart.pick.filter(n => n !== s.name);
     modelChart(models, true);
   });
+
   const note = $('models-note');
   if (note) {
-    note.innerHTML = modelFam
-      ? `Rolled up to the model line, so a generation handing over to its successor
-         stays inside one series${modelFam && models.fam_members && modelChart[pick].length
-           ? ` (${modelChart[pick][0]} covers ${(models.fam_members[modelChart[pick][0]] || []).slice(0, 4).join(', ')})`
-           : ''}. Share is of the tracked families that day.`
-      : `Each series is one base name, which is one generation of a model. A line
-         falling as its successor is released is the handover, not abandonment —
-         <b>By family</b> rolls gemma3 into gemma4, qwen3 into qwen3.8 and llama3 into
-         the muse models so the lineage is visible.`;
+    const mem = models.fam_members || {};
+    const shown = modelChart.pick.filter(n => (mem[n] || []).length > 1).slice(0, 2)
+      .map(n => `<b>${n}</b> covers ${mem[n].slice(0, 4).join(', ')}`);
+    note.innerHTML =
+      `Each line is a model lineage, not a single release, so a generation handing over to
+       its successor stays inside one series${shown.length ? ` — ${shown.join('; ')}` : ''}.
+       Tracking individual names instead would make every line fall toward zero as its
+       replacement shipped, which is the namespace growing rather than anyone walking away.
+       Share is of the tracked lineages that day. Embedding models and the tiny demo models
+       are excluded, as are Chapter 2's scratch and closed-weights names.
+       ${modelChart.loose
+        ? `Chapter 2's flagged machines are <b>included</b> here, which is why Code Llama and
+           openchat rank where they do — both are names in the phantom catalogue, and the
+           exclusion removes 59% and 63% of their hosts respectively.`
+        : `Machines flagged by Chapter 2's tests are excluded, since a host that answers from
+           a fixed script is not running a lineage. That removes about 40% of hosts overall
+           but 59% of Code Llama and 63% of openchat, both of them names in the phantom
+           catalogue.`}`;
   }
 }
 
@@ -1917,6 +1944,60 @@ function lagChart(L) {
        ${L.unmatched_version} hosts reporting an invented version
        (<code>hello</code>, <code>sample</code>, <code>0.0.0-observation</code>) are excluded.`;
   };
+  draw();
+  addEventListener('resize', debounce(draw, 150));
+}
+
+/* ===================== the responder fleet, over time ===================== */
+/* Counting these hosts on their own would mostly track how hard we were
+   scanning that month. As a share of everything visible on the same day the
+   coverage cancels out, and the shape that remains is a fleet that switched
+   off over the winter and came back bigger. */
+function waveChart(W) {
+  const host = $('wave');
+  let asShare = true;
+
+  const draw = () => {
+    const vals = smooth(asShare ? W.share : W.phantom, 15);
+    const series = [{
+      name: asShare ? 'Phantom catalogue, share of population' : 'Phantom-catalogue hosts',
+      color: 'var(--series-8)', values: vals,
+    }];
+    timeChart(host, {
+      day0: W.day0, ndays: W.ndays, series, height: 300,
+      valueFormat: v => asShare ? v.toFixed(1) + '%' : Math.round(v).toLocaleString(),
+      yFormat: v => asShare ? v + '%' : v,
+    });
+
+    // describe the shape from the data rather than asserting it
+    const mon = {};
+    for (let i = 0; i < W.ndays - 2; i++) {
+      if (W.population[i] < 50) continue;
+      const d = new Date((W.day0 + i * 86400) * 1000);
+      const k = d.toISOString().slice(0, 7);
+      (mon[k] = mon[k] || []).push(100 * W.phantom[i] / W.population[i]);
+    }
+    const keys = Object.keys(mon).sort();
+    const avg = k => mon[k].reduce((a, b) => a + b, 0) / mon[k].length;
+    const first = keys.filter(k => k < '2025-10');
+    const peak1 = first.reduce((a, b) => (avg(b) > avg(a) ? b : a), first[0]);
+    const trough = keys.filter(k => k > peak1 && k < '2026-03')
+      .reduce((a, b) => (avg(b) < avg(a) ? b : a), keys.find(k => k > peak1));
+    const last = keys[keys.length - 1];
+    const fmt = k => new Date(k + '-02').toLocaleString('en-US',
+      { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    $('wave-note').innerHTML =
+      `Nothing before April 2025. The first wave peaks in <b>${fmt(peak1)}</b> at
+       <b>${avg(peak1).toFixed(1)}%</b> of everything visible, falls away to
+       <b>${avg(trough).toFixed(1)}%</b> by ${fmt(trough)} — effectively gone — and then
+       climbs every month since, reaching <b>${avg(last).toFixed(1)}%</b> in ${fmt(last)}.
+       The second wave is already larger than the first and is still going up.
+       Smoothed over 15 days; the final few days are thin and move around.
+       This is a share, so it is not the survey finding more servers: it is a bigger
+       fraction of the servers it finds.`;
+  };
+
+  pair($('wave-share'), $('wave-count'), null, null, a => { asShare = a; draw(); });
   draw();
   addEventListener('resize', debounce(draw, 150));
 }

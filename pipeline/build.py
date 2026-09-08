@@ -96,6 +96,22 @@ def main():
             if (svid, d) not in sybil:
                 per_src_clean[sid][d].add(svid)
                 clean[d].add(svid)
+    # ---- 1b. the responder fleet as a fraction of the population ------------
+    # Counting phantom-catalogue hosts on its own would track how hard we were
+    # scanning that month. As a share of everything visible on the same day the
+    # coverage cancels, and what is left is how much of the exposed Ollama
+    # population is answering from a script.
+    phantom_ids = {r[0] for r in con.execute(
+        "SELECT server_id FROM questionable_server WHERE phantom=1")}
+    ph_day = [sum(1 for x in u if x in phantom_ids) for u in union]
+    write(OUT/"phantom_wave.json", {
+        "day0": d0, "ndays": ndays,
+        "phantom": ph_day,
+        "population": [len(u) for u in union],
+        "share": [round(100*p/len(u), 3) if u else 0
+                  for p, u in zip(ph_day, union)],
+    })
+
     write(OUT/"counts.json", {
         "day0": d0, "ndays": ndays,
         "sources": {sources[s]: [len(x) for x in v] for s, v in per_src.items()},
@@ -110,10 +126,30 @@ def main():
         "SELECT m.id, m.base, mv.vendor FROM model m"
         " JOIN model_vendor mv ON mv.model_id=m.id")}
     from vendors import family as family_of
+    from questionable import PLACEHOLDER
     fam_cache = {}
+
+    # Families the chart is not about. Chapter 2's scratch and probe names are
+    # not a model line at all, closed-weights names are not weights anybody
+    # shipped, and embeddings and the tiny demo models answer a different
+    # question from "which lineage are people running" - they are kept out of
+    # the denominator so the shares are shares of real chat models.
+    DROP_FAMILIES = {"Embeddings", "SmolLM"}
+
+    def charted_family(base, mid):
+        if mid in impossible:
+            return None
+        low = (base or "").lower()
+        if any(low == p or low.startswith(p) for p in PLACEHOLDER):
+            return None
+        f = fam_cache.get(base)
+        if f is None:
+            f = fam_cache[base] = family_of(base)
+        return None if (not f or f in DROP_FAMILIES) else f
     ser = {k: collections.defaultdict(lambda: [0]*ndays)
            for k in ("model_all", "model_clean", "vendor_all", "vendor_clean",
-                     "vendor_strict", "family_all", "family_clean")}
+                     "vendor_strict", "family_all", "family_clean",
+                     "family_strict")}
     seen = collections.defaultdict(set)
     for svid, mid, a, b in con.execute(
             f"SELECT server_id,model_id,(start_ts-?)/?,(end_ts-?)/? FROM server_model"
@@ -124,9 +160,7 @@ def main():
         base, vend = meta[mid]
         for d in days(a, b):
             dirty = (svid, d) in sybil
-            fam = fam_cache.get(base)
-            if fam is None:
-                fam = fam_cache[base] = family_of(base)
+            fam = charted_family(base, mid)
             for key, name in (("model", base), ("vendor", vend), ("family", fam)):
                 if key == "vendor" and mid in impossible:
                     continue
@@ -138,8 +172,11 @@ def main():
                     ser[f"{key}_all"][name][d] += 1
                     if not dirty:
                         ser[f"{key}_clean"][name][d] += 1
-                        if key == "vendor" and svid not in questionable:
-                            ser["vendor_strict"][name][d] += 1
+                        if svid not in questionable:
+                            if key == "vendor":
+                                ser["vendor_strict"][name][d] += 1
+                            elif key == "family":
+                                ser["family_strict"][name][d] += 1
     top = sorted(ser["model_clean"], key=lambda m: max(ser["model_clean"][m]),
                  reverse=True)[:TOP_MODELS]
     # A base name pins one generation, so every series decays as its successor
@@ -147,7 +184,11 @@ def main():
     # (vendors.family) follows the line instead - gemma3 into gemma4, qwen3 into
     # qwen3.8, llama3 into muse - so the page can show whether a lineage is
     # holding while a generation inside it fades.
-    ftop = sorted(ser["family_clean"], key=lambda m: max(ser["family_clean"][m]),
+    # Rank on the questionable-excluded series: Code Llama and openchat are only
+    # near the top because they are two of the six names in Chapter 2's phantom
+    # catalogue, and ranking on a population that still contains those machines
+    # puts the responder fleet's favourites in front of real lineages.
+    ftop = sorted(ser["family_strict"], key=lambda m: max(ser["family_strict"][m]),
                   reverse=True)[:TOP_MODELS]
     # A model name is whatever the host called it, and some hosts call a model
     # after an IP address - two of them after another surveyed host's address.
@@ -159,9 +200,10 @@ def main():
                               "vendor": {mm(m): vendor_of(m) for m in top},
                               "fam_all": {mm(m): ser["family_all"][m] for m in ftop},
                               "fam_clean": {mm(m): ser["family_clean"][m] for m in ftop},
+                              "fam_strict": {mm(m): ser["family_strict"][m] for m in ftop},
                               "fam_members": {mm(f): [mm(b) for b in sorted(
                                   (b for b in ser["model_clean"]
-                                   if fam_cache.get(b) == f),
+                                   if fam_cache.get(b) == f and f not in DROP_FAMILIES),
                                   key=lambda b: -max(ser["model_clean"][b]))[:8]]
                                   for f in ftop}})
     write(OUT/"vendors.json", {"day0": d0, "ndays": ndays,
