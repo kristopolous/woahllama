@@ -310,7 +310,6 @@ pre#note-modelfile { background: var(--surface-2); border: 1px solid var(--borde
   border-radius: 8px; padding: 12px 14px; margin: 0; overflow-x: auto;
   font: 12.5px/1.6 ui-monospace, Menlo, monospace; color: var(--text-primary);
   white-space: pre-wrap; word-break: break-word; }
-}
 
 /* Modelfile colouring. Every token is a span with textContent set, so nothing
    in the attacker's file can become markup. */
