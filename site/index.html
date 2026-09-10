@@ -541,20 +541,32 @@
 
 </section>
 <section>
-  <h2>It arrives in waves</h2>
-  <p class="note">Counted as a share of everything visible on the same day, so our own
-  changing coverage cancels out. Nothing at all before April 2025. A peak that summer, an
-  almost total disappearance over the winter, then a second climb through 2026 that is now
-  bigger than the first.</p>
-  <p class="note">The fleet is stood up for a season, torn down, and stood up again with
-  the bait refreshed. The waves are campaigns.</p>
+  <h2>Where the bait came from</h2>
+  <p class="note">The catalogue is not an arbitrary list. It is what people were actually
+  running when the trap was built.</p>
+  <p class="note">Separating the two populations in the past is harder than it looks.
+  The catalogue test cannot do it, because a server running <code>llama3</code> in early
+  2025 was running the most popular model of the moment, and the test would call it fake
+  in hindsight. Reported size cannot do it either: the fleet's byte-exact constant is
+  indistinguishable from a genuinely popular tag that everyone pulled from the same
+  re-push.</p>
+  <p class="note">The port can. It is recorded on every observation, it is set by
+  whoever installed the thing, and no part of it is inferred from a model list. Ollama's
+  default is 11434. Almost every real server uses it and almost none of this fleet
+  does.</p>
+  <p class="note">So in an unfiltered count these old models never went out of fashion.
+  They did. What holds the number up is a fleet advertising a 2025 shelf that nobody
+  restocked, which is also why the sizes are wrong and the version strings are from the
+  same era. Half the fleet has since moved to current flagship names, so somebody
+  eventually noticed the bait had gone stale.</p>
   <div class="card">
-    <div class="controls">
-      <button id="wave-share" aria-pressed="true">Share of population</button>
-      <button id="wave-count" aria-pressed="false">Host count</button>
-    </div>
-    <div id="wave"></div>
-    <p class="note" id="wave-note"></p>
+    <h2 style="font-size:15px">What is left of the real thing</h2>
+    <p class="note">Machines in this feed answering on the port Ollama actually uses,
+    against machines answering on anything else. They trade places at the end of July
+    2025 and never trade back.</p>
+    <div id="legit-share"></div>
+    <div class="legend" id="legit-share-legend"></div>
+    <p class="note" id="legit-share-note"></p>
   </div>
 </section>
 <section>

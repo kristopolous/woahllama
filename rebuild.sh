@@ -40,6 +40,8 @@ CSV=$(ls dbip-city-lite-*.csv.gz 2>/dev/null | tail -1 || true)
 if [ -n "$CSV" ]; then python3 geo.py "$CSV" >/dev/null && echo "  geolocate    ok"; fi
 python3 build.py
 python3 build_probe.py
+# the bait catalogue real-vs-fake split, and the fleet's port mix over time
+python3 build_legit_share.py
 # the attack-path sweep that identifies the phantom fleet as honeypots
 # (needs probe/honeypot_probe/; skips cleanly in a published checkout)
 python3 build_honeypot.py

@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting', 'campaigns', 'anomalies', 'honeypot'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting, camps, anom, honeypot]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'legit_share', 'hoarding_time', 'hosting', 'campaigns', 'anomalies', 'honeypot'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, legitShare, hoardT, hosting, camps, anom, honeypot]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -45,7 +45,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     modelChart(models);
     pullsChart(pulls);
     lagChart(lag);
-    waveChart(wave);
+    legitShareChart(legitShare);
     hostingChart(hosting);
     campaignsChart(camps);
     anomaliesChart(anom);
@@ -72,6 +72,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
       modelChart(models, true); geoChart(geo, true);
       versionSurvey(survey);
     strangeSection(strange);
+    legitShareChart(legitShare);
     probeChart(probe);
     versionChart(probe);
     honeypotChart(honeypot);
@@ -2154,59 +2155,39 @@ function lagChart(L) {
    scanning that month. As a share of everything visible on the same day the
    coverage cancels out, and the shape that remains is a fleet that switched
    off over the winter and came back bigger. */
-function waveChart(W) {
-  const host = $('wave');
-  let asShare = true;
-
-  const draw = () => {
-    const vals = smooth(asShare ? W.share : W.phantom, 15);
-    const series = [{
-      name: asShare ? 'Phantom catalogue, share of population' : 'Phantom-catalogue hosts',
-      color: 'var(--series-8)', values: vals,
-    }];
-    timeChart(host, {
-      day0: W.day0, ndays: W.ndays, series, height: 300,
-      valueFormat: v => asShare ? v.toFixed(1) + '%' : Math.round(v).toLocaleString(),
-      yFormat: v => asShare ? v + '%' : v,
-    });
-
-    // describe the shape from the data rather than asserting it
-    const mon = {};
-    for (let i = 0; i < W.ndays - 2; i++) {
-      if (W.population[i] < 50) continue;
-      const d = new Date((W.day0 + i * 86400) * 1000);
-      const k = d.toISOString().slice(0, 7);
-      (mon[k] = mon[k] || []).push(100 * W.phantom[i] / W.population[i]);
-    }
-    const keys = Object.keys(mon).sort();
-    const avg = k => mon[k].reduce((a, b) => a + b, 0) / mon[k].length;
-    const first = keys.filter(k => k < '2025-10');
-    const peak1 = first.reduce((a, b) => (avg(b) > avg(a) ? b : a), first[0]);
-    const trough = keys.filter(k => k > peak1 && k < '2026-03')
-      .reduce((a, b) => (avg(b) < avg(a) ? b : a), keys.find(k => k > peak1));
-    const last = keys[keys.length - 1];
-    const fmt = k => new Date(k + '-02').toLocaleString('en-US',
-      { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    $('wave-note').innerHTML =
-      `Nothing before April 2025. The first wave peaks in <b>${fmt(peak1)}</b> at
-       <b>${avg(peak1).toFixed(1)}%</b> of everything visible, falls away to
-       <b>${avg(trough).toFixed(1)}%</b> by ${fmt(trough)}, effectively gone, and then
-       climbs every month since, reaching <b>${avg(last).toFixed(1)}%</b> in ${fmt(last)}.
-       The second wave is already larger than the first and is still going up.
-       Smoothed over 15 days; the final few days are thin and move around.
-       This is a share, so it is not the survey finding more servers: it is a bigger
-       fraction of the servers it finds.`;
-  };
-
-  pair($('wave-share'), $('wave-count'), null, null, a => { asShare = a; draw(); });
-  draw();
-  addEventListener('resize', debounce(draw, 150));
+function legitShareChart(L) {
+  const day = i => new Date((L.day0 + i * 86400) * 1000)
+    .toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  // two lines, not a stack. One band dwarfs the other, so stacking it fills the
+  // plot with a solid colour and the line that matters stops being readable.
+  const series = [
+    { name: `port ${L.port}`, color: 'var(--series-1)', values: smooth(L.std, 15) },
+    { name: 'all other ports', color: 'var(--series-2)', values: smooth(L.other, 15) },
+  ];
+  timeChart($('legit-share'), {
+    day0: L.day0, ndays: L.ndays, series, height: 320,
+    valueFormat: v => Math.round(v).toLocaleString(),
+  });
+  legend($('legit-share-legend'), series);
+  $('legit-share-note').innerHTML =
+    `Machines on Ollama's own port peaked at <b>${L.std_peak.toLocaleString()}</b> in
+     ${day(L.std_peak_day)} and are down to <b>${L.std_now.toLocaleString()}</b>, while
+     the rest of the feed sits at <b>${L.other_now.toLocaleString()}</b>. The lines cross
+     in <b>${L.cross_day == null ? 'mid-2025' : day(L.cross_day)}</b> and never cross
+     back.</p><p class="note">Counted in machines, which changes the picture. A single
+     host that answers on every port asked of it enters the feed once per port:
+     one box did that for nine days in April 2025 and produced 3,315 entries, which
+     used to look like the fake fleet arriving that spring. It was one machine.</p>
+     <p class="note">Port is recorded on every observation, so this splits the feed at
+     the time it was seen instead of labelling old servers with what we learned later.
+     It is a proxy and not proof: <b>0.3%</b> of the hosts on ${L.port} carry the frozen
+     catalogue against <b>66%</b> of those on other ports, and of the honeypot listings
+     confirmed by direct probe exactly one out of 827 was on ${L.port}. Somebody can move
+     the port on a real box. Not this many of them, in this direction, on this schedule.
+     OllamaSpider's feed only, smoothed over 15 days.`;
 }
 
-/* ============ where the fleet is hosted, and what it is not ================ */
-/* Two stacked bars, AWS against everywhere else, each split into
-   phantom-catalogue hosts and the rest. The point is the second bar having no
-   coloured segment at all: not a small one, none. */
+
 function hostingChart(D) {
   const host = $('hosting');
   if (!host || !D) return;
