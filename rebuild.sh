@@ -64,3 +64,5 @@ if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi
 python3 geo_keep.py save
+# the social card carries the headline numbers, so it is regenerated with them
+python3 make_og.py

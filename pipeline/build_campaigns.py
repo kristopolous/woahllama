@@ -17,9 +17,26 @@ captures also contain `parent_model` paths that carry the operator's OS username
 Writes site/data/campaigns.json."""
 import collections, json, pathlib, re, sys, urllib.request
 
+import graflex_paths
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data"
-PROBE = ROOT / "tmp" / "20260904145005" / "models"
+
+
+def _latest_show_sweep():
+    """The newest complete graflex run carrying an /api/show sweep.
+
+    Pinning a run id here goes stale the moment a new sweep lands and the chart
+    then quietly keeps reporting the old one, so pick it up from the drop.
+    """
+    for _rid, d in reversed(graflex_paths.run_dirs()):
+        m = pathlib.Path(d) / "models"
+        if m.is_dir() and any(m.glob("*.json")):
+            return m
+    return ROOT / "tmp" / "models"      # nothing found; glob() below yields none
+
+
+PROBE = _latest_show_sweep()
 
 WALLET = "bc1q5xpazlg7q6ph2r6s7tzumd5zyjdet6vjzvsqln"
 EXPLORERS = ("https://mempool.space/api/address/{}",

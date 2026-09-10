@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Woah…llama</title>
-<meta name="description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
+<title>32K open ollamas, 256 honeypots, and 365 failed ransoms</title>
+<meta name="description" content="Eighteen months of unsecured Ollama servers. Hundreds of them are not servers at all but one honeypot kit wearing an Ollama mask, built to catch the people scanning. 365 more carry a ransom note, and the wallet has never received a single satoshi.">
 <meta name="author" content="day50">
 <link rel="canonical" href="https://day50.dev/woahllama/">
 
 <!-- Open Graph / social cards. URLs point at the deploy target; unfurlers require an absolute og:image. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="day50.dev">
-<meta property="og:title" content="Woah…llama">
-<meta property="og:description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
+<meta property="og:title" content="32K open ollamas, 256 honeypots, and 365 failed ransoms">
+<meta property="og:description" content="Eighteen months of unsecured Ollama servers. Hundreds of them are not servers at all but one honeypot kit wearing an Ollama mask, built to catch the people scanning. 365 more carry a ransom note, and the wallet has never received a single satoshi.">
 <meta property="og:image" content="https://day50.dev/woahllama/og.png">
 <meta property="og:image:secure_url" content="https://day50.dev/woahllama/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Woah…llama, a survey of unsecured Ollama servers">
+<meta property="og:image:alt" content="32K open ollamas, 256 honeypots, and 365 failed ransoms">
 <meta property="og:url" content="https://day50.dev/woahllama/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Woah…llama">
-<meta name="twitter:description" content="Global survey over eighteen months of unsecured Ollama servers. What's running where and an unsolved mystery">
+<meta name="twitter:title" content="32K open ollamas, 256 honeypots, and 365 failed ransoms">
+<meta name="twitter:description" content="Eighteen months of unsecured Ollama servers. Hundreds of them are not servers at all but one honeypot kit wearing an Ollama mask, built to catch the people scanning. 365 more carry a ransom note, and the wallet has never received a single satoshi.">
 <meta name="twitter:image" content="https://day50.dev/woahllama/og.png">
-<meta name="twitter:image:alt" content="Woah…llama, a survey of unsecured Ollama servers">
+<meta name="twitter:image:alt" content="32K open ollamas, 256 honeypots, and 365 failed ransoms">
 
 <link rel="stylesheet" href="style.css">
 </head>
@@ -32,10 +32,13 @@
 
 <div class="wrap">
 <header>
-  <h1>32,863 Open Ollama Servers and an Unsolved Mystery</h1>
-  <p class="sub">An eighteen month survey of unsecured Ollama servers reconstructed from the
-  commit history of three scanners with hundreds of mysterious servers that aren't as they appear.</p>
-  <p class="byline">Last updated: September 7, 2026</p>
+  <h1>32K open ollamas, 256 honeypots, and 365 failed ransoms</h1>
+  <p class="sub">Eighteen months of unsecured Ollama servers, reconstructed from the
+  commit history of three scanners and then probed directly. Hundreds of them are not
+  servers at all. They are one honeypot kit wearing an Ollama mask, built to catch the
+  people scanning for open models. Another 365 carry a ransom demand for files that
+  were never encrypted. The wallet has never received a satoshi.</p>
+  <p class="byline">Last updated: September 10, 2026</p>
   <div class="stats" id="stats"></div>
 </header>
 
@@ -485,14 +488,16 @@
     <p class="note">Every test above asks the same kind of question. We spoke Ollama at
     these machines, in more and more careful ways, and got nonsense back. The thing we
     never did was speak anything else at them.</p>
-    <p class="note">A real Ollama daemon serves <code>/api/tags</code> and returns 404 for
-    everything else on earth. So ask one of these hosts for the four things a scanner
-    always asks for. A WordPress login page. A leaked <code>.git</code> directory. A
-    <code>.env</code> file. A database dump left in the web root. None of them has
-    anything to do with Ollama, and a real Ollama host does not have any of them.</p>
+    <p class="note">A real Ollama daemon serves its own short list of <code>/api/</code>
+    routes and returns 404 for everything else. So ask one of these hosts for the four
+    things a scanner always asks for instead. A WordPress login page. A leaked
+    <code>.git</code> config. A <code>.env</code> file. A database dump left in the web
+    root. None of them has anything to do with Ollama, and a real Ollama host has none of
+    them.</p>
     <p class="note">They serve all four.</p>
     <div id="honeypot" style="margin-top:14px"></div>
     <p class="note" id="honeypot-note"></p>
+    <p class="note" id="honeypot-count" style="margin-top:12px"></p>
   </div>
 
   <div class="card" style="margin-top:16px">
@@ -506,10 +511,10 @@
     while it is logged. Every command succeeds because the point is to never give you a
     reason to leave.</p>
     <p class="note">The pages give up the operator. Compare the bodies byte for byte
-    across the hosts and two of the four are the same file everywhere, which makes this one
-    kit deployed repeatedly rather than many people doing the same thing. The other two are
-    different on every single host, and those are exactly the two that carry
-    credentials.</p>
+    across the machines and two of the four are the same file on nearly all of them, which
+    makes this one kit deployed repeatedly rather than many people doing the same thing.
+    The other two are different on every single one, and those are exactly the two that
+    carry credentials.</p>
     <div class="scroll"><table class="data" id="honeypot-kit"></table></div>
     <p class="note" id="honeypot-kit-note" style="margin-top:12px"></p>
   </div>

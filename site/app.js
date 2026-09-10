@@ -1206,40 +1206,55 @@ function honeypotChart(H) {
   $('honeypot').innerHTML = P.paths.map((p, i) => row(p.path, i)).join('') +
     `<div class="legend" style="margin-top:2px;gap:6px 20px">
       <span><i style="background:var(--series-2)"></i>phantom-catalogue fleet
-        (${P.live} live of ${P.sampled} sampled)</span>
-      <span><i style="background:var(--decoy)"></i>verified-working Ollama hosts
-        (${C ? C.live : 0} live of ${C ? C.sampled : 0})</span></div>`;
+        (${P.live} live of ${P.sampled} machines sampled)</span>
+      <span><i style="background:var(--decoy)"></i>control: ${C ? C.bar_base : 0}
+        genuine Ollama hosts</span></div>`;
 
   $('honeypot-note').innerHTML =
-    `<b>${P.honeypot} of the ${P.live} hosts that answered serve all four</b>, which is
-     ${pct(P.honeypot, P.live).toFixed(1)}% of them. In the control group it is
-     ${C ? C.honeypot : 0} hosts, ${C ? pct(C.honeypot, C.live).toFixed(1) : 0}%, and
-     those ${C ? C.honeypot : 0} are the same thing hiding in the working pool rather
-     than an exception to the rule. <b>${P.catchall}</b> of the fleet also answer 200
-     to a randomly generated path that exists nowhere, so most of the kit is a plain
-     catch-all and the rest is curated to a list of known bait. The
-     <code>.env</code> file it hands over carries an AWS access key on
-     <b>${P.akia}</b> of them. Those keys are almost certainly canary tokens: the
-     alert fires when somebody uses one, which identifies the scanner. We logged
-     that they exist and went no further. Sampled at 10% of the fleet, so the share
-     is the estimate, not the count.`;
+    `<b>Every one of the ${P.live} machines that answered serves all four.</b> The
+     control is the other extreme: <b>${C ? C.bar_base : 0} genuine Ollama hosts, and
+     not one of them served a single bait path</b>, or the random one either. The
+     control started at ${C ? C.live : 0}. Three of those served all four, so we asked
+     them the trivia question: one returned a stub with a timestamp frozen in 2024, one
+     returned the phrase-bank filler from earlier in this chapter, one returned the
+     literal string <code>ok</code>. They are the same kit, sitting in our own working
+     list because that list only ever tested <code>/api/tags</code>, which is the one
+     thing this kit does well. They are not Ollama hosts, so they are out of the
+     control. <b>${P.catchall}</b> of the fleet also answer 200 to a randomly generated
+     path that exists nowhere, so most of the kit is a plain catch-all and the rest is
+     curated to a list of known bait. The <code>.env</code> file carries an AWS access
+     key on <b>${P.akia}</b> of them. Those keys are almost certainly canary tokens: the
+     alert fires when somebody uses one. We logged that they exist and went no
+     further.`;
+  $('honeypot-count').innerHTML =
+    `<b>${H.confirmed_total} machines confirmed</b>, one at a time, and that is a
+     floor. The
+     scanner feeds suggest far more only because they count one entry per open port and
+     these boxes listen on up to a dozen, on fresh AWS addresses every redeploy. The
+     ${P.sampled} machines here are ${pct(P.sampled, 3523).toFixed(0)}% of what the feeds
+     currently list, putting the fleet at roughly six hundred to a thousand. The feeds
+     clip their per-model counts at 875, so that ceiling is theirs and not the
+     fleet's.`;
 
   // one kit, deployed repeatedly, with a per-host token stapled into it
   const K = H.kit || [];
   $('honeypot-kit').innerHTML =
-    `<thead><tr><th>path</th><th class="n">hosts serving it</th>
+    `<thead><tr><th>path</th><th class="n">machines serving it</th>
       <th class="n">distinct bodies</th><th>reading</th></tr></thead><tbody>` +
     K.map(k => `<tr><td><code>${k.path}</code></td>
-      <td class="n">${k.hosts}</td>
-      <td class="n">${k.distinct}</td>
-      <td style="color:var(--text-secondary)">${k.distinct === 1
-        ? `byte-identical everywhere, ${fmtInt(k.bytes)} bytes`
-        : 'different on every host'}</td></tr>`).join('') + '</tbody>';
+      <td class="n">${fmtInt(k.hosts)}</td>
+      <td class="n">${fmtInt(k.distinct)}</td>
+      <td style="color:var(--text-secondary)">${k.per_host
+        ? 'a different one on every machine'
+        : `one file on ${k.top_share}% of them, ${fmtInt(k.top_bytes)} bytes`
+        }</td></tr>`).join('') + '</tbody>';
   $('honeypot-kit-note').innerHTML =
-    `The WordPress page and the database dump are one file copied across every host.
+    `The WordPress page and the database dump are one file copied across every machine.
      The <code>.git</code> config and the <code>.env</code> differ on all of them,
-     because those are the two a scanner would actually harvest, and each host needs
-     its own token so the alert says which trap was sprung.`;
+     because those are the two a scanner would actually harvest, and each one needs its
+     own token so the alert says which trap was sprung. Ask the same address twice and
+     the file comes back byte for byte identical. Ask the same machine on a different
+     port and the token is a different one. It is issued per open port, not per box.`;
 
   // the fleet is still being maintained: half of it now advertises 2026 flagships
   const A = H.catalogue;
@@ -1273,7 +1288,7 @@ function honeypotChart(H) {
        models somebody would most want to find on an open port in 2026, and the
        weights behind several of them run to hundreds of gigabytes. Somebody looked
        at what a 2026 scanner is hunting for and restocked the shelf. This fleet is
-       being tended, which is worth holding on to when you get to the waves.`;
+       being tended.`;
   }
 }
 
@@ -1798,7 +1813,7 @@ function buildNav() {
   if (!wrap) return;
   const nav = document.createElement('nav');
   nav.className = 'sidenav';
-  nav.innerHTML = '<div class="nav-title">Woah\u2026llama</div>';
+  nav.innerHTML = '<div class="nav-title">32K open ollamas, 256 honeypots</div>';
   const targets = [];
   let i = 0;
   const addLink = (el, text, sub) => {
