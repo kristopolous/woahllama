@@ -1,5 +1,7 @@
 # woah…llama
 
+## [https://day50.dev/woahllama/](https://day50.dev/woahllama/)
+
 Nineteen months of unsecured Ollama servers, reconstructed from the commit
 histories of scanners that publish what they find, and extended with
 point-in-time surveys and a daily re-probe of our own. The site reads it back
