@@ -2,8 +2,11 @@
 """Parse Shodan search-result HTML (tmp/graflex/shodan-results-*.txt) into
 private fofa/fofa.db table shodan_host. Each host = one online liveness sample."""
 import os, re, glob, sqlite3
+
+import graflex_paths
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-G = os.path.join(ROOT, "tmp", "graflex")
+G = graflex_paths.root() or os.path.join(ROOT, "tmp", "graflex")
 DB = os.path.join(ROOT, "fofa", "fofa.db")
 FN = re.compile(r'shodan-results-([A-Za-z0-9]+)-')
 BLK = re.compile(r'<div class="result">(.*?)<div class="banner-data">', re.S)
@@ -28,8 +31,9 @@ def parse(path):
     return out
 
 def main():
-    files = (glob.glob(os.path.join(G, "shodan-results-*.txt"))
-             + glob.glob(os.path.join(G, "graflex", "*", "shodan", "*.txt")))
+    files = glob.glob(os.path.join(G, "shodan-results-*.txt"))
+    for _rid, d in graflex_paths.run_dirs():
+        files += glob.glob(os.path.join(d, "shodan", "*.txt"))
     # per-run captures name the service; only Ollama belongs in this survey
     files = [f for f in files
              if "shodan-results-" in os.path.basename(f)

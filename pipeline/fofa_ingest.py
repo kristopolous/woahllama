@@ -22,8 +22,10 @@ time we ran the query. `fofa_sighting` holds those; `fofa_host` is kept as the
 latest-row-per-host view that older consumers expect."""
 import os, re, json, sys, sqlite3, multiprocessing as mp
 
+import graflex_paths
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GRAFLEX = os.path.join(ROOT, "tmp", "graflex")
+GRAFLEX = graflex_paths.root()
 DB = os.path.join(ROOT, "fofa", "fofa.db")
 BLOB = re.compile(r'id="__NUXT_DATA__">(.*?)</script>', re.S)
 # country appears in a different position in each generation of the naming
@@ -113,28 +115,28 @@ def extract(path):
     return out
 
 def find_files():
-    """Every FOFA capture, as (path, service-claimed-by-filename, run-id)."""
+    """Every FOFA capture, as (path, service-claimed-by-filename, run-id).
+
+    Run directories come from graflex_paths, which knows both drop layouts and
+    drops any run still being written.
+    """
     out = []
-    flat = [f for f in os.listdir(GRAFLEX) if f.startswith("fofa-results-")]
-    for f in flat:
-        m = RUNDATE.search(f)
-        out.append((os.path.join(GRAFLEX, f), None, m.group(1) if m else "flat"))
-    runs = os.path.join(GRAFLEX, "graflex")
-    if os.path.isdir(runs):
-        for run in sorted(os.listdir(runs)):
-            d = os.path.join(runs, run)
-            if not os.path.isdir(d):
-                continue
-            rid = RUNDATE.match(run).group(1) if RUNDATE.match(run) else run
-            # older runs: captures sit directly in the run directory
-            for f in os.listdir(d):
-                if f.startswith("fofa-results-"):
-                    out.append((os.path.join(d, f), None, rid))
-            # newer runs: a fofa/ subdirectory, service named in the file
-            sub = os.path.join(d, "fofa")
-            if os.path.isdir(sub):
-                for f in os.listdir(sub):
-                    out.append((os.path.join(sub, f), file_service(f), rid))
+    if GRAFLEX and os.path.isdir(GRAFLEX):
+        for f in os.listdir(GRAFLEX):          # the original flat drop
+            if f.startswith("fofa-results-"):
+                m = RUNDATE.search(f)
+                out.append((os.path.join(GRAFLEX, f), None,
+                            m.group(1) if m else "flat"))
+    for rid, d in graflex_paths.run_dirs():
+        # older runs: captures sit directly in the run directory
+        for f in os.listdir(d):
+            if f.startswith("fofa-results-"):
+                out.append((os.path.join(d, f), None, rid))
+        # newer runs: a fofa/ subdirectory, service named in the file
+        sub = os.path.join(d, "fofa")
+        if os.path.isdir(sub):
+            for f in os.listdir(sub):
+                out.append((os.path.join(sub, f), file_service(f), rid))
     return out
 
 

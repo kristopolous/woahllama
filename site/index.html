@@ -323,8 +323,9 @@
   what came back does not behave like anybody running anything.</p>
   <p class="chapter-lede">Nobody reported this. It turned up as arithmetic that would not
   sit still. So: here are the counts, here are the two separate things the counts turn out
-  to be, and then each one in turn. One of them we can take apart completely. The other has
-  been sitting there for eighteen months and we still do not know what it is.</p>
+  to be, and then each one in turn. Both of them come apart in the end, though the bigger
+  one held out for eighteen months and only gave way when we stopped asking it about
+  Ollama.</p>
 </div>
 <section>
   <h2>Something is wrong with a lot of these</h2>
@@ -369,11 +370,14 @@
 <div class="chapter">
   <div class="chapter-num">Chapter 2.1</div>
   <h2 class="chapter-title">The servers that are not servers</h2>
-  <p class="chapter-lede">This is the big pile, and the one we cannot crack. Hundreds of
-  hosts answering the Ollama API from what is very obviously a script: one frozen model
-  list, identical file sizes, version strings off a wheel, and chat replies stitched
-  together out of a phrase bank. Everything below is what they do. Why anybody is doing it
-  is a question we are going to fail to answer, at length.</p>
+  <p class="chapter-lede">This is the big pile. Hundreds of hosts answering the Ollama API
+  from what is very obviously a script: one frozen model list, identical file sizes,
+  version strings off a wheel, and chat replies stitched together out of a phrase bank.
+  Everything below is what they do.</p>
+  <p class="chapter-lede">It took a long time to work out why, and the answer arrived from
+  a direction we were not looking in. The fake Ollama is not the point of these machines.
+  It is one lure on a trap built for the people scanning for open Ollama servers, which is
+  to say for us.</p>
 </div>
 <section>
   <h2>Hundreds of hosts answering as Ollama</h2>
@@ -478,20 +482,57 @@
 
   <div class="card" style="margin-top:16px">
     <h2 style="font-size:15px">So what is it?</h2>
-    <p class="note">Unknown, and the data does not let us pretend otherwise. What is
-    established is narrow. Within OllamaSpider's feed, hundreds of live hosts answer the
-    Ollama API with a frozen set of old models, sizes that do not match the published blobs,
-    rotating version strings, and phrase-bank replies.</p>
-    <p class="note">The behaviour matches no published
-    honeypot, tarpit or mock-server project, checked against GitHub, the web, and the
-    honeypot literature. The closest, <code>funnypot</code>, echoes the model name rather
-    than the prompt and runs on a single host.</p>
-  <p class="note">The causes are all guesses and range widely.
-    A honeypot, though the bait is worthless. Real servers that refuse outside probes, and
-    we watched one genuine box do exactly that. A coordinated deployment. Or a badly
-    misconfigured setup copied onto thousands of machines and forgotten. We cannot choose
-    between them from here. Narrowing it would take infrastructure work: reverse DNS, ASN
-    and subnet clustering, and whether one operator's fingerprints recur.</p>
+    <p class="note">Every test above asks the same kind of question. We spoke Ollama at
+    these machines, in more and more careful ways, and got nonsense back. The thing we
+    never did was speak anything else at them.</p>
+    <p class="note">A real Ollama daemon serves <code>/api/tags</code> and returns 404 for
+    everything else on earth. So ask one of these hosts for the four things a scanner
+    always asks for. A WordPress login page. A leaked <code>.git</code> directory. A
+    <code>.env</code> file. A database dump left in the web root. None of them has
+    anything to do with Ollama, and a real Ollama host does not have any of them.</p>
+    <p class="note">They serve all four.</p>
+    <div id="honeypot" style="margin-top:14px"></div>
+    <p class="note" id="honeypot-note"></p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">It is a trap, and the fake Ollama is one wall of it</h2>
+    <p class="note">This is not a broken Ollama. It is a honeypot that answers every
+    protocol you try, and Ollama is one of the personalities it wears. That reframes every
+    finding above. A catalogue frozen since 2024 is not neglect, it is a prop. Sizes that
+    do not match the published blobs are not a bug in somebody's mock, they are numbers
+    nobody expected to be checked against ollama.com. The phrase bank is not a failed
+    language model, it is enough of one to keep a scanner reading for another few seconds
+    while it is logged. Every command succeeds because the point is to never give you a
+    reason to leave.</p>
+    <p class="note">The pages give up the operator. Compare the bodies byte for byte
+    across the hosts and two of the four are the same file everywhere, which makes this one
+    kit deployed repeatedly rather than many people doing the same thing. The other two are
+    different on every single host, and those are exactly the two that carry
+    credentials.</p>
+    <div class="scroll"><table class="data" id="honeypot-kit"></table></div>
+    <p class="note" id="honeypot-kit-note" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">The bait has been restocked</h2>
+    <p class="note">One last thing the sweep turned up, which is the strongest evidence
+    that somebody is still tending this. The live fleet now splits almost exactly in half
+    by what it advertises.</p>
+    <div id="honeypot-cat"></div>
+    <p class="note" id="honeypot-cat-note" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="font-size:15px">What we still cannot say</h2>
+    <p class="note">Who runs it. The kit matches no published honeypot, tarpit or
+    mock-server project, checked against GitHub, the web, and the honeypot literature. The
+    closest, <code>funnypot</code>, echoes the model name rather than the prompt and runs
+    on a single host. Whether this is one security vendor's canary network, one researcher
+    at scale, or something with a less friendly purpose, the traffic alone does not say.</p>
+    <p class="note">Nor whether it works. The whole design assumes somebody scrapes an
+    exposed host, finds a credential, and tries it. We are not going to find out by trying
+    one.</p>
   </div>
 
 </section>
@@ -507,6 +548,8 @@
   <p class="note">Which kills the most boring explanation available. This is not one broken
   config copied around in 2025 and left to rot, because a thing left to rot does not stop
   and start again. Something turned it off. Something turned it back on.</p>
+  <p class="note">That reads differently now. A trap is deployed, run for a season, torn
+  down, and deployed again with the bait refreshed. The waves are campaigns.</p>
   <div class="card">
     <div class="controls">
       <button id="wave-share" aria-pressed="true">Share of population</button>
@@ -524,6 +567,8 @@
   and the number of those carrying the phantom catalogue is zero.</p>
   <p class="note">Spread proportionally, a couple of thousand should be sitting on Hetzner
   and OVH and the rest. Go and look. They are not there.</p>
+  <p class="note">One account, one cloud, one kit, one set of tokens. The hosting is not
+  a demographic fact about who runs fake Ollama servers. It is the operator's invoice.</p>
   <div class="card">
     <div id="hosting"></div>
     <div class="legend" id="hosting-legend"></div>
@@ -534,9 +579,9 @@
 <div class="chapter">
   <div class="chapter-num">Chapter 2.2</div>
   <h2 class="chapter-title">The commercial models that cannot exist</h2>
-  <p class="chapter-lede">The small pile, and the one we solved. The solution took about
-  one HTTP request, which is a little embarrassing given how long we spent theorising
-  first.</p>
+  <p class="chapter-lede">The small pile. Like the big one, it gave way to a single HTTP
+  request we should have sent much earlier, and to a different endpoint than the one we
+  kept interrogating.</p>
   <p class="chapter-lede">Below: what these servers claim, the two sensible explanations for
   it, why the evidence refuses to support either, and then what is actually in there.</p>
 </div>

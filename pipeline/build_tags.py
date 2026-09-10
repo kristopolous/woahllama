@@ -5,8 +5,10 @@ oldest one is a lower bound on host age. Writes private tables into fofa/fofa.db
 (real IPs -> gitignored). :cloud tags are dropped, per the standing rule."""
 import os, re, json, glob, sqlite3, datetime
 
+import graflex_paths
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GRAFLEX = os.path.join(ROOT, "tmp", "graflex")
+GRAFLEX = graflex_paths.root() or os.path.join(ROOT, "tmp", "graflex")
 DB = os.path.join(ROOT, "fofa", "fofa.db")
 # check-<ip>-<ts>.json  OR the fixed form check-<ip>-<port>-<ts>.json
 FN = re.compile(r'check-([0-9a-fA-F:.]+?)(?:-(\d{1,5}))?-(\d{14})\.json$')
@@ -38,8 +40,9 @@ def main():
     # and probe time are read out of the JSON, not the filename.
     files = (glob.glob(os.path.join(GRAFLEX, "check-*.json"))
              + glob.glob(os.path.join(GRAFLEX, "tags", "check-*.json"))
-             + glob.glob(os.path.join(GRAFLEX, "graflex", "tags", "check-*.json"))
-             + glob.glob(os.path.join(GRAFLEX, "graflex", "*", "check", "*.json")))
+             + glob.glob(os.path.join(GRAFLEX, "graflex", "tags", "check-*.json")))
+    for _rid, d in graflex_paths.run_dirs():
+        files += glob.glob(os.path.join(d, "check", "*.json"))
     print(f"  tags captures: {len(files)}")
     con = sqlite3.connect(DB); c = con.cursor()
     c.executescript("""

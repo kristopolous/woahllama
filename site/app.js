@@ -35,8 +35,8 @@ const pair = (onA, onB, a, b, fn) => {
   onB.onclick = () => set('b');
 };
 
-Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting', 'campaigns', 'anomalies'].map(load))
-  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting, camps, anom]) => {
+Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world', 'pools', 'map', 'sizes', 'strange', 'probe', 'template', 'survey', 'hoarding', 'population_model', 'fake_size', 'pulls', 'lag', 'phantom_wave', 'hoarding_time', 'hosting', 'campaigns', 'anomalies', 'honeypot'].map(load))
+  .then(([counts, vendors, models, geo, octets, life, world, pools, mapd, sizes, strange, probe, template, survey, hoarding, popmodel, fakeSize, pulls, lag, wave, hoardT, hosting, camps, anom, honeypot]) => {
     window.__popmodel = popmodel; window.__fakesize = fakeSize;
     window.__models = models; window.__geo = geo; window.__counts = counts;
     stats(counts, life, pools, mapd);
@@ -56,6 +56,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     strangeSection(strange);
     probeChart(probe);
     versionChart(probe);
+    honeypotChart(honeypot);
     templateDecoder(template);
     sizeChart(sizes);
     quantChart(sizes);
@@ -73,6 +74,7 @@ Promise.all(['counts', 'vendors', 'models', 'geo', 'octets', 'lifetime', 'world'
     strangeSection(strange);
     probeChart(probe);
     versionChart(probe);
+    honeypotChart(honeypot);
     templateDecoder(template);
     sizeChart(sizes);
     quantChart(sizes);
@@ -1165,6 +1167,114 @@ function versionChart(P) {
       <td><span class="bar" style="width:${n / max * 100}%;background:var(--decoy)"></span></td>
       <td class="n" style="width:110px">${n} · ${(n / total * 100).toFixed(0)}%</td></tr>`
     ).join('') + '</tbody></table>';
+}
+
+
+/* ------------------------------------------------- the attack-path signature */
+/* The comparison is the whole point, so the two populations sit on one row per
+   path: the fleet in the accent colour, the control group of verified-real
+   Ollama hosts beneath it in grey. A real daemon serves the first path and
+   nothing else, which is what makes the other five rows an answer. */
+function honeypotChart(H) {
+  const g = Object.fromEntries(H.groups.map(x => [x.group, x]));
+  const P = g.phantom, C = g.control;
+  if (!P) return;
+  const pct = (n, d) => d ? n / d * 100 : 0;
+  const row = (path, i) => {
+    const p = P.paths[i], c = C && C.paths[i];
+    const bar = (v, d, col) => `<div style="flex:1">
+      <div style="height:13px;background:var(--surface-2);border-radius:3px;
+        overflow:hidden"><div style="width:${pct(v, d)}%;height:100%;
+        background:${col}"></div></div></div>`;
+    const num = (v, d) => `<span class="n" style="width:78px;display:inline-block;
+      text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:12px">
+      ${pct(v, d).toFixed(0)}% <span style="color:var(--text-muted)">${v}</span></span>`;
+    const real = i === 0;
+    return `<div style="margin-bottom:13px">
+      <div style="font-size:12.5px;margin-bottom:4px"><code>${path}</code>
+        ${real ? '<span style="color:var(--text-muted)">· the one a real Ollama '
+               + 'host does serve</span>' : ''}</div>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px">
+        <span style="width:118px;font-size:11.5px;color:var(--text-secondary)">
+          phantom fleet</span>${bar(p.n200, p.live, 'var(--series-2)')}
+        ${num(p.n200, p.live)}</div>
+      ${c ? `<div style="display:flex;align-items:center;gap:9px">
+        <span style="width:118px;font-size:11.5px;color:var(--text-muted)">
+          real Ollama hosts</span>${bar(c.n200, c.live, 'var(--decoy)')}
+        ${num(c.n200, c.live)}</div>` : ''}</div>`;
+  };
+  $('honeypot').innerHTML = P.paths.map((p, i) => row(p.path, i)).join('') +
+    `<div class="legend" style="margin-top:2px;gap:6px 20px">
+      <span><i style="background:var(--series-2)"></i>phantom-catalogue fleet
+        (${P.live} live of ${P.sampled} sampled)</span>
+      <span><i style="background:var(--decoy)"></i>verified-working Ollama hosts
+        (${C ? C.live : 0} live of ${C ? C.sampled : 0})</span></div>`;
+
+  $('honeypot-note').innerHTML =
+    `<b>${P.honeypot} of the ${P.live} hosts that answered serve all four</b>, which is
+     ${pct(P.honeypot, P.live).toFixed(1)}% of them. In the control group it is
+     ${C ? C.honeypot : 0} hosts, ${C ? pct(C.honeypot, C.live).toFixed(1) : 0}%, and
+     those ${C ? C.honeypot : 0} are the same thing hiding in the working pool rather
+     than an exception to the rule. <b>${P.catchall}</b> of the fleet also answer 200
+     to a randomly generated path that exists nowhere, so most of the kit is a plain
+     catch-all and the rest is curated to a list of known bait. The
+     <code>.env</code> file it hands over carries an AWS access key on
+     <b>${P.akia}</b> of them. Those keys are almost certainly canary tokens: the
+     alert fires when somebody uses one, which identifies the scanner. We logged
+     that they exist and went no further. Sampled at 10% of the fleet, so the share
+     is the estimate, not the count.`;
+
+  // one kit, deployed repeatedly, with a per-host token stapled into it
+  const K = H.kit || [];
+  $('honeypot-kit').innerHTML =
+    `<thead><tr><th>path</th><th class="n">hosts serving it</th>
+      <th class="n">distinct bodies</th><th>reading</th></tr></thead><tbody>` +
+    K.map(k => `<tr><td><code>${k.path}</code></td>
+      <td class="n">${k.hosts}</td>
+      <td class="n">${k.distinct}</td>
+      <td style="color:var(--text-secondary)">${k.distinct === 1
+        ? `byte-identical everywhere, ${fmtInt(k.bytes)} bytes`
+        : 'different on every host'}</td></tr>`).join('') + '</tbody>';
+  $('honeypot-kit-note').innerHTML =
+    `The WordPress page and the database dump are one file copied across every host.
+     The <code>.git</code> config and the <code>.env</code> differ on all of them,
+     because those are the two a scanner would actually harvest, and each host needs
+     its own token so the alert says which trap was sprung.`;
+
+  // the fleet is still being maintained: half of it now advertises 2026 flagships
+  const A = H.catalogue;
+  if (A) {
+    const col = (title, sub, items, color) => `<div style="flex:1;min-width:230px">
+      <div style="font-size:12.5px;margin-bottom:2px"><b>${title}</b></div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">
+        ${sub}</div>
+      ${items.map(([m, n]) => `<div style="display:flex;align-items:center;gap:8px;
+        margin-bottom:4px"><code style="font-size:11.5px;flex:1;overflow:hidden;
+        text-overflow:ellipsis;white-space:nowrap">${m}</code>
+        <span style="width:44px;height:9px;background:var(--surface-2);
+          border-radius:2px;overflow:hidden"><span style="display:block;height:100%;
+          width:${n / items[0][1] * 100}%;background:${color}"></span></span>
+        <span class="n" style="width:22px;font-size:11px;
+          font-family:ui-monospace,Menlo,monospace">${n}</span></div>`).join('')}
+      </div>`;
+    $('honeypot-cat').innerHTML =
+      `<div style="display:flex;gap:24px;flex-wrap:wrap">
+        ${col(`${A.old_hosts} hosts: the frozen 2024 pool`,
+              'the catalogue described above, several models each',
+              A.old_top, 'var(--decoy)')}
+        ${col(`${A.hf_hosts} hosts: current flagships, one each`,
+              'Hugging Face naming, models released in 2025 and 2026',
+              A.hf_top, 'var(--series-2)')}</div>`;
+    $('honeypot-cat-note').innerHTML =
+      `Same kit on both halves, same bait paths, same canary keys. Only the model
+       list moved. ${A.hf_single_model} of the ${A.hf_hosts} advertise exactly one
+       model, named the way Hugging Face names them rather than the way Ollama does,
+       so none of these is a tag you could pull from ollama.com at all. They are the
+       models somebody would most want to find on an open port in 2026, and the
+       weights behind several of them run to hundreds of gigabytes. Somebody looked
+       at what a 2026 scanner is hunting for and restocked the shelf. This fleet is
+       being tended, which is worth holding on to when you get to the waves.`;
+  }
 }
 
 

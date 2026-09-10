@@ -7,7 +7,7 @@ cd "$(dirname "$0")/pipeline"
 # ---- merge the private point-in-time surveys into survey.db FIRST, so the model
 # and vendor enrichment below sees their new model names. Each step skips cleanly
 # when its private inputs are absent (a published checkout has neither). ----
-if [ -d ../tmp/graflex ]; then
+if python3 -c "import graflex_paths,sys; sys.exit(0 if graflex_paths.root() else 1)"; then
   python3 fofa_ingest.py    >/dev/null 2>&1 && echo "  fofa ingest   ok" || true
   python3 shodan_ingest.py  >/dev/null 2>&1 && echo "  shodan ingest ok" || true
 fi
@@ -23,7 +23,7 @@ fi
 python3 geo_keep.py restore
 # country from the capture itself for hosts the db-ip lookup cannot place
 python3 geo_from_capture.py
-if [ -d ../tmp/graflex/tags ]; then
+if python3 -c "import graflex_paths,sys; sys.exit(0 if graflex_paths.root() else 1)"; then
   python3 build_tags.py >/dev/null && echo "  tag pull dates ok"   # writes site/data/fake_size.json
 fi
 
@@ -40,6 +40,9 @@ CSV=$(ls dbip-city-lite-*.csv.gz 2>/dev/null | tail -1 || true)
 if [ -n "$CSV" ]; then python3 geo.py "$CSV" >/dev/null && echo "  geolocate    ok"; fi
 python3 build.py
 python3 build_probe.py
+# the attack-path sweep that identifies the phantom fleet as honeypots
+# (needs probe/honeypot_probe/; skips cleanly in a published checkout)
+python3 build_honeypot.py
 # ollama.com's advertised pull counts, cached per fetch day; the chart
 # still builds from the last snapshot if the scrape fails or is offline
 python3 library_pulls.py || true
