@@ -966,7 +966,7 @@ function strangeSection(S) {
     `Today <b>${snap.now_phantom.toLocaleString()} of ${snap.now_total.toLocaleString()}</b>
      servers in OllamaSpider's live snapshot carry this exact list,
      <b>${snap.now_pct}%</b> of the feed, up from ${snap.early_pct}% when it first
-     appeared in early 2025. Over the full seventeen months
+     appeared in early 2025. Over the full nineteen months
      ${S.phantom.exact.toLocaleString()} distinct entries matched it exactly and
      ${S.phantom.near.toLocaleString()} more matched it bar an entry or two. The list is
      frozen, never once joined by a model newer than early 2024, yet fresh copies keep

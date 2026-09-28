@@ -21,7 +21,8 @@ since the db-ip CSV is not in the repo. Real IPs -> gitignored."""
 import os, json, glob, sqlite3, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "graflex")
+# GRAFLEX_DAILY (rebuild.sh -d) points at the summaries wherever they are mounted
+SRC = os.environ.get("GRAFLEX_DAILY") or os.path.join(ROOT, "graflex")
 DB = os.path.join(ROOT, "fofa", "fofa.db")
 
 

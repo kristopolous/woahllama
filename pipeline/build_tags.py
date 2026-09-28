@@ -2,10 +2,12 @@
 """Parse /api/tags probe captures (tmp/graflex/check-<ip>-<ts>.json) into per-model
 pull dates. modified_at is the real date a model was pulled onto the host, so the
 oldest one is a lower bound on host age. Writes private tables into fofa/fofa.db
-(real IPs -> gitignored). :cloud tags are dropped, per the standing rule."""
+(real IPs -> gitignored). `-cloud` tags are dropped, per the standing rule."""
 import os, re, json, glob, sqlite3, datetime
 
 import graflex_paths
+
+CLOUD = re.compile(r"(?:^|-)cloud$")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GRAFLEX = graflex_paths.root() or os.path.join(ROOT, "tmp", "graflex")
@@ -77,8 +79,11 @@ def main():
             pts = probe_ts(pts_s)
             host = f"{ip}:{port}" if port else ip
             models = d.get("models") or []
-        # drop :cloud
-        models = [x for x in models if not (x.get("name","").endswith(":cloud"))]
+        # drop cloud-proxied tags (`:cloud`, `:120b-cloud`; same rule as
+        # modelmeta.is_cloud), and entries that are not model objects at all
+        # (some responders return a list of bare numbers)
+        models = [x for x in models if isinstance(x, dict)
+                  and not CLOUD.search((x.get("name") or "").rpartition(":")[2])]
         if not models:
             empties += 1
             hrows.append((host, pts, 0, None, None, 0, 1)); continue

@@ -26,9 +26,18 @@ def sf(h, dd):
 for f in glob.glob(os.path.join(ROOT, "history", "*.jsonl")):
     for ln in open(f):
         r = json.loads(ln); so(r["host"], od(r["first_seen"])); so(r["host"], od(r["last_seen"]))
+# the git scanners' verified lists give real first-to-last spans. OllamaSpider is
+# left out: it scrapes Shodan indiscriminately and is Chapter 2's population. FOFA
+# and Shodan result pages are detail, not a census, so they are not read here.
+sv = sqlite3.connect(os.path.join(ROOT, "survey.db"))
+for h, a, z in sv.execute(
+        "SELECT s.host||':'||s.port, min(p.start_ts), max(p.end_ts) FROM presence p"
+        " JOIN server s ON s.id=p.server_id JOIN source src ON src.id=p.source_id"
+        " WHERE src.name IN ('awesome-ollama-server','ollamalist') GROUP BY s.id"):
+    for t in (a, z):
+        so(h, (datetime.datetime.fromtimestamp(t, datetime.timezone.utc).date() - EPOCH).days)
+sv.close()
 con = sqlite3.connect(DB); c = con.cursor()
-for h, mt in c.execute("SELECT ip||':'||port, mtime FROM fofa_host WHERE mtime!=''"): so(h, od(mt))
-for h, ts in c.execute("SELECT host, ts FROM shodan_host WHERE ts!=''"): so(h, od(ts))
 for h, st, ck in c.execute("SELECT host, status, checked FROM probe WHERE checked!=''"):
     (so if st == 'working' else sf)(h, od(ck))
 # daily live probe: online-only sightings. A host missing from a later run is not
@@ -36,7 +45,7 @@ for h, st, ck in c.execute("SELECT host, status, checked FROM probe WHERE checke
 # sets an offline bound.
 if c.execute("SELECT name FROM sqlite_master WHERE type='table'"
              " AND name='daily_probe'").fetchone():
-    for h, ck in c.execute("SELECT host, checked FROM daily_probe WHERE service='ollama'"):
+    for h, ck in c.execute("SELECT host||':'||port, checked FROM daily_probe WHERE service='ollama'"):
         so(h, od(ck))
 con.close()
 
@@ -135,7 +144,7 @@ def population(Sd):
         out[j] = contrib.sum()
     return out
 
-# observed raw distinct hosts seen online that month (from git+fofa+shodan online spans)
+# observed raw distinct hosts seen online that month (from git + probe online spans)
 obs = np.zeros(len(Dm))
 for j, dm in enumerate(Dm):
     obs[j] = int(((b <= dm) & (le >= dm) &

@@ -26,7 +26,7 @@ font = lambda sz, b=False: ImageFont.truetype(F % ("-Bold" if b else ""), sz)
 
 # the three facts, each one directly measured
 FACTS = [("32K", "open ollamas"), ("256", "honeypots"), ("365", "failed ransoms")]
-TAGLINE = "eighteen months of unsecured Ollama servers"
+TAGLINE = "nineteen months of unsecured Ollama servers"
 URL = "day50.dev/woahllama"
 
 

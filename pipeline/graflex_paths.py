@@ -14,6 +14,9 @@ A run that is still being written must not be ingested: a half-finished sweep
 looks exactly like a real drop in host counts, and it would silently pull every
 chart down. Runs named in `tmp/.ingest-skip` (one run id per line, `#` comments)
 are excluded. Delete the line when the sweep finishes.
+
+The drop also moves between machines, so GRAFLEX_SURVEY (set by rebuild.sh -s)
+overrides the tmp/ lookup. It is only ever read from.
 """
 import os, re
 
@@ -23,6 +26,9 @@ RUNDATE = re.compile(r'^\d{14}$')
 
 def root():
     """The directory holding the capture drop, or None if it is not mounted."""
+    env = os.environ.get("GRAFLEX_SURVEY")
+    if env:
+        return env if os.path.isdir(env) else None
     for cand in (os.path.join(ROOT, "tmp", "graflex"), os.path.join(ROOT, "tmp")):
         if os.path.isdir(cand):
             return cand

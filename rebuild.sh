@@ -1,17 +1,40 @@
 #!/bin/sh
 # Rebuild every derived artefact. Safe to re-run; the ollama.com scrape is cached
 # in library_cache.json, so only new model names are fetched.
-set -ex
+#
+#   ./rebuild.sh [-s SURVEY_DIR] [-d DAILY_DIR] [LIBRARY_LIMIT]
+#
+#   -s  the graflex survey drop (<rundate>/ dirs, tags/)   default: tmp/graflex
+#   -d  the graflex daily summaries (*.json)                default: graflex/
+#
+# The archives move depending on which machine the update runs from, so point at
+# them here instead of copying them in. Both are only ever read.
+set -e
+usage() { echo "usage: $0 [-s survey_dir] [-d daily_dir] [library_limit]" >&2; exit 2; }
+abspath() { (cd "$1" && pwd); }
+while getopts s:d:h opt; do
+  case $opt in
+    s) [ -d "$OPTARG" ] || { echo "no such survey dir: $OPTARG" >&2; exit 1; }
+       GRAFLEX_SURVEY=$(abspath "$OPTARG"); export GRAFLEX_SURVEY ;;
+    d) [ -d "$OPTARG" ] || { echo "no such daily dir: $OPTARG" >&2; exit 1; }
+       GRAFLEX_DAILY=$(abspath "$OPTARG"); export GRAFLEX_DAILY ;;
+    *) usage ;;
+  esac
+done
+shift $((OPTIND - 1))
+set -x
 cd "$(dirname "$0")/pipeline"
+SURVEY=${GRAFLEX_SURVEY:-../tmp/graflex}
+DAILY=${GRAFLEX_DAILY:-../graflex}
 
 # ---- merge the private point-in-time surveys into survey.db FIRST, so the model
 # and vendor enrichment below sees their new model names. Each step skips cleanly
 # when its private inputs are absent (a published checkout has neither). ----
-if python3 -c "import graflex_paths,sys; sys.exit(0 if graflex_paths.root() else 1)"; then
+if [ -d "$SURVEY" ]; then
   python3 fofa_ingest.py    >/dev/null 2>&1 && echo "  fofa ingest   ok" || true
   python3 shodan_ingest.py  >/dev/null 2>&1 && echo "  shodan ingest ok" || true
 fi
-if [ -d ../graflex ]; then
+if [ -d "$DAILY" ]; then
   python3 graflex_daily.py   >/dev/null 2>&1 && echo "  daily probe   ok" || true
 fi
 if [ -f ../fofa/fofa.db ]; then
@@ -23,7 +46,7 @@ fi
 python3 geo_keep.py restore
 # country from the capture itself for hosts the db-ip lookup cannot place
 python3 geo_from_capture.py
-if python3 -c "import graflex_paths,sys; sys.exit(0 if graflex_paths.root() else 1)"; then
+if [ -d "$SURVEY/tags" ]; then
   python3 build_tags.py >/dev/null && echo "  tag pull dates ok"   # writes site/data/fake_size.json
 fi
 
@@ -40,11 +63,6 @@ CSV=$(ls dbip-city-lite-*.csv.gz 2>/dev/null | tail -1 || true)
 if [ -n "$CSV" ]; then python3 geo.py "$CSV" >/dev/null && echo "  geolocate    ok"; fi
 python3 build.py
 python3 build_probe.py
-# the bait catalogue real-vs-fake split, and the fleet's port mix over time
-python3 build_legit_share.py
-# the attack-path sweep that identifies the phantom fleet as honeypots
-# (needs probe/honeypot_probe/; skips cleanly in a published checkout)
-python3 build_honeypot.py
 # ollama.com's advertised pull counts, cached per fetch day; the chart
 # still builds from the last snapshot if the scrape fails or is offline
 python3 library_pulls.py || true
@@ -57,14 +75,16 @@ python3 build_lag.py || true
 python3 survey_versions.py
 python3 build_hoarding.py
 python3 build_hoarding_time.py
-# where the responder fleet is hosted + the negative results (needs fofa.db)
-python3 build_hosting.py || true
-# what the fake premium models are, and what the wallet earned (needs the
-# /api/show sweep; queries two block explorers, skips cleanly offline)
-python3 build_campaigns.py || true
+python3 build_legit_share.py
+# these read the survey drop's detail (FOFA ASN, /api/show sweep) for hosts the
+# real sources already know; campaigns also asks two public block explorers
+if [ -f ../fofa/fofa.db ]; then
+  python3 build_hosting.py
+  python3 build_campaigns.py || true
+fi
+# needs the private honeypot_probe capture; keeps the existing json without it
+[ -d ../probe/honeypot_probe ] && python3 build_honeypot.py || true
 if [ -f ../fofa/fofa.db ]; then
   python3 survival_boot.py >/dev/null && echo "  survival     ok"
 fi
 python3 geo_keep.py save
-# the social card carries the headline numbers, so it is regenerated with them
-python3 make_og.py

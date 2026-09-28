@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Additively merge the point-in-time FOFA and Shodan surveys and the daily
-live-probe survey into survey.db as new sources, so build.py picks them up in
-every chart. FOFA and Shodan hosts become a single-day presence at their scan
-date (FOFA mtime / Shodan ts) - those are last-seen snapshots, not spans. The
-live probe re-checks the same hosts on successive days, so it does give a span:
-its presence runs from a host's first to its last online sighting. Idempotent:
-prior rows for these sources are removed first. Does NOT touch the git-scanner
-sources or the existing server_geo."""
+"""Additively merge the daily live-probe survey into survey.db as a source, so
+build.py picks it up in every chart. The live probe re-checks the same hosts on
+successive days, so it gives a span: its presence runs from a host's first to
+its last online sighting.
+
+The daily graflex/ files are the authoritative host lists. The FOFA and Shodan
+pages in the survey drop are detail about machines for deeper digging - tags,
+/api/show, country and ASN - not a census, so they are NOT merged in as sources
+of their own: a host they saw counts only if a real source also saw it.
+Idempotent: prior rows for these sources are removed first, including the
+fofa-live/shodan-live sources older builds created. Does NOT touch the
+git-scanner sources or the existing server_geo."""
 import os, sqlite3, datetime, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parse import split_model
@@ -30,7 +34,7 @@ def ip_fields(ip):
 def main():
     con = sqlite3.connect(SURVEY); c = con.cursor()
     fc = sqlite3.connect(FOFA); fq = fc.cursor()
-    # ---- clean prior fofa/shodan sources (idempotent) ----
+    # ---- clean prior merged sources (idempotent) ----
     old = [r[0] for r in c.execute("SELECT id FROM source WHERE discovery IN"
                                    " ('fofa-live','shodan-live','probe-live')")]
     for sid in old:
@@ -89,39 +93,6 @@ def main():
         return sid, len(pres), len(smod)
 
     import json
-    def fofa_rows():
-        """FOFA is now scanned in repeated runs, so a host can carry several
-        dated sightings and gets a real first-to-last span like the live probe.
-        The date is FOFA's own `mtime` for the asset - when FOFA last saw it -
-        not when we ran the query. Most hosts still appear on a single day; the
-        span only opens up for the ones a later run re-reported."""
-        if fq.execute("SELECT name FROM sqlite_master WHERE type='table'"
-                      " AND name='fofa_sighting'").fetchone():
-            span, mspan, ports = {}, {}, {}
-            for host, ip, port, mt, models in fq.execute(
-                    "SELECT host,ip,port,mtime,models FROM fofa_sighting"
-                    " WHERE mtime!='' ORDER BY mtime"):
-                t = uts(mt)
-                if t is None: continue
-                key = f"{ip}:{port}"
-                ports[key] = port
-                a, b, n = span.get(key, (t, t, 0))
-                span[key] = (min(a, t), max(b, t), n + 1)
-                for m in json.loads(models or "[]"):
-                    if not (m and m[0]): continue
-                    ma, mb, mn = mspan.setdefault(key, {}).get(m[0], (t, t, 0))
-                    mspan[key][m[0]] = (min(ma, t), max(mb, t), mn + 1)
-            for key, (a, b, n) in span.items():
-                yield (key, ports[key], a, b, n, mspan.get(key, {}))
-            return
-        for ip, port, mt, models in fq.execute("SELECT ip,port,mtime,models FROM fofa_host WHERE mtime!=''"):
-            t = uts(mt)
-            yield (f"{ip}:{port}", port, mt, mt, 1,
-                   {m[0]: (t, t, 1) for m in json.loads(models) if m and m[0]})
-    def shodan_rows():
-        for host, port, ts in fq.execute("SELECT ip,port,ts FROM shodan_host WHERE ts!=''"):
-            yield f"{host}:{port}", port, ts, ts, 1, {}
-
     def probe_rows():
         """The daily live probe re-checks the same hosts, so collapse each host's
         dated sightings into a first-to-last span. Only the Ollama service: the
@@ -146,14 +117,10 @@ def main():
         for host, (a, b, n) in span.items():
             yield (host, ports[host], a, b, n, mspan.get(host, {}))
 
-    sidf, pf, mf = add_source("fofa-survey", "fofa/graflex", "struct_info", "fofa-live", fofa_rows(), True)
-    sids, ps, ms = add_source("shodan-survey", "shodan/graflex", "banner", "shodan-live", shodan_rows(), False)
     sidp, pp, mp = add_source("live-probe", "graflex/daily", "api/tags", "probe-live", probe_rows(), True)
     c.executemany("INSERT INTO server(id,url,host,port,ip,ip_int,o1,o2) VALUES(?,?,?,?,?,?,?,?)", new_servers)
     c.executemany("INSERT INTO model(id,name,base,tag) VALUES(?,?,?,?)", new_models)
     con.commit()
-    print(f"fofa-survey:   {pf} presence, {mf} model rows")
-    print(f"shodan-survey: {ps} presence")
     print(f"live-probe:    {pp} presence, {mp} model rows")
     print(f"new servers: {len(new_servers)}  new models: {len(new_models)}")
     # Coverage note. server_geo does not exist yet on a freshly re-ingested
